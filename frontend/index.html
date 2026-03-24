@@ -516,7 +516,7 @@
             <div class="loader"></div>
             <p>🚀 Fetching recommendations...</p>
             <p style="color:#94a3b8; font-size:0.9rem;">
-              First request may take ~20 seconds (server waking up)
+              First request may take ~60 seconds (server waking up)
             </p>
           </div>`;
 
@@ -524,7 +524,7 @@
           requestStatus.innerHTML += `<p style="color:#facc15; font-size:0.85rem;">
               Still working... almost there 👀
             </p>`;
-        }, 5000);
+        }, 10000);
 
         if (mode === "quiz") {
           const payload = {
