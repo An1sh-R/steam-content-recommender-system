@@ -23,7 +23,6 @@ Thumbs.db
 # Large data
 data/raw/
 data/processed/
-data/vectors/*.csv
 
 # Jupyter / temp
 *.ipynb
