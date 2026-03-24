@@ -15,7 +15,8 @@ from backend.services.user_service import get_user_profile
 import os
 redis_client = redis.from_url(
     os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    decode_responses=True
+    decode_responses=True,
+    ssl=True
 )
 
 # load game trait vectors once
