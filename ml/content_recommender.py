@@ -4,8 +4,14 @@ import numpy as np
 import difflib
 from sklearn.metrics.pairwise import cosine_similarity
 
-# load vectors once
-with open("data/vectors/tfidf_matrix.pkl", "rb") as f:
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+tfidf_path = os.path.join(PROJECT_ROOT, "data", "vectors", "tfidf_matrix.pkl")
+
+with open(tfidf_path, "rb") as f:
     tfidf_matrix = pickle.load(f)
 
 metadata = pd.read_csv("data/vectors/games_metadata.csv")

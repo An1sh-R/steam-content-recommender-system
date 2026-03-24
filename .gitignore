@@ -4,6 +4,4 @@ __pycache__/
 venv/
 data/raw/
 data/processed/
-*.pkl
-data/vectors/
 tests/
