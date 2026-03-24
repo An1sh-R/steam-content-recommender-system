@@ -512,22 +512,18 @@
       const quiz_answers = getQuizAnswers();
 
       try {
-        requestStatus.innerHTML = 
-          <div style="text-align:center;">
+        requestStatus.innerHTML = `<div style="text-align:center;">
             <div class="loader"></div>
             <p>🚀 Fetching recommendations...</p>
             <p style="color:#94a3b8; font-size:0.9rem;">
               First request may take ~20 seconds (server waking up)
             </p>
-          </div>
-        ;
+          </div>`;
 
         setTimeout(() => {
-          requestStatus.innerHTML += 
-            <p style="color:#facc15; font-size:0.85rem;">
+          requestStatus.innerHTML += `<p style="color:#facc15; font-size:0.85rem;">
               Still working... almost there 👀
-            </p>
-          ;
+            </p>`;
         }, 5000);
 
         if (mode === "quiz") {
