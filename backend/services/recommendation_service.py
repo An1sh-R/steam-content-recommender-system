@@ -19,8 +19,16 @@ redis_client = redis.from_url(
     ssl=True
 )
 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
+
+def get_data_path(*paths):
+    return os.path.join(PROJECT_ROOT, "data", *paths)
+
 # load game trait vectors once
-with open("data/vectors/game_traits.pkl", "rb") as f:
+with open(get_data_path("vectors", "game_traits.pkl"), "rb") as f:
     game_traits = pickle.load(f)
 
 

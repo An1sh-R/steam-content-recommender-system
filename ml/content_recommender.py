@@ -9,12 +9,15 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
-tfidf_path = os.path.join(PROJECT_ROOT, "data", "vectors", "tfidf_matrix.pkl")
+def get_data_path(*paths):
+    return os.path.join(PROJECT_ROOT, "data", *paths)
 
-with open(tfidf_path, "rb") as f:
+# load metadata
+metadata = pd.read_csv(get_data_path("vectors", "games_metadata.csv"))
+
+# load tfidf
+with open(get_data_path("vectors", "tfidf_matrix.pkl"), "rb") as f:
     tfidf_matrix = pickle.load(f)
-
-metadata = pd.read_csv("data/vectors/games_metadata.csv")
 
 # build fast lookup
 name_to_index = {name.lower(): idx for idx, name in enumerate(metadata["Name"])}
