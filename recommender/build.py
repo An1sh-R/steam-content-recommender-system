@@ -10,7 +10,7 @@ import argparse
 
 import pandas as pd
 
-from recommender import catalogue, clean, config, load, popularity
+from recommender import catalogue, clean, config, documents, load, popularity, vectorize
 
 
 def prepare(raw: pd.DataFrame) -> pd.DataFrame:
@@ -30,8 +30,13 @@ def build(sample: bool = False) -> None:
     games = prepare(raw)
     print(f"catalogue: {len(games):,} of {len(raw):,} games kept")
 
+    matrices = vectorize.fit(documents.build_documents(games))
+    for name, matrix in matrices.items():
+        print(f"  {name:12s} {matrix.shape[0]:,} x {matrix.shape[1]:,}")
+    vectorize.save(matrices, games["appid"].to_numpy(), config.ARTIFACTS_DIR)
+
     catalogue.build_db(games, config.CATALOGUE_DB)
-    print(f"wrote {config.CATALOGUE_DB.name}")
+    print(f"wrote {config.CATALOGUE_DB.name} and vectors in {config.ARTIFACTS_DIR.name}/")
 
 
 def main() -> None:

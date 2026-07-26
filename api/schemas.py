@@ -30,6 +30,17 @@ class GameSummary(BaseModel):
         )
 
 
+class Recommendation(GameSummary):
+    """A recommended game, with the similarity that put it there.
+
+    ``parts`` is the per-space cosine (tags / genres / description). It is what
+    the UI charts and what the M5 explanations are written from.
+    """
+
+    similarity: float
+    parts: dict[str, float]
+
+
 class GameOption(BaseModel):
     """One entry in the search-and-select widget."""
 

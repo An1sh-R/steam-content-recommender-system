@@ -52,9 +52,9 @@ See §6.1 of [`CLAUDE.md`](CLAUDE.md).
 ## Progress
 
 - [x] **M0** — Foundation, column contract, sample dataset, tests
-- [x] **M1** — Cleaning + SQLite catalogue (56,052 of 125,855 games kept)
+- [x] **M1** — Cleaning + SQLite catalogue (55,973 of 125,855 games kept)
 - [x] **M2** — Wilson popularity + first vertical slice (API + UI + Docker)
-- [ ] **M3** — TF-IDF retrieval
+- [x] **M3** — TF-IDF retrieval, `/recommend/{appid}` (~25 ms per query)
 - [ ] **M4** — Evaluation harness
 - [ ] **M5** — Reranking, MMR, explanations
 - [ ] **M6** — Streamlit UI

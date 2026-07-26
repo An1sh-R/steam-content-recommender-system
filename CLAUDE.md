@@ -197,7 +197,15 @@ Baldur's Gate 3, Lethal Company, Satisfactory, Balatro, Vampire Survivors.
 ### 6.3 Catalogue filtered to ~56k of 125,855 games
 
 Filter: `reviews ≥ 10` AND has tags AND `description ≥ 20 words` AND not a
-playtest/demo/soundtrack. **Measured: 56,052 of 125,855 games kept (44.5%).**
+playtest/demo/soundtrack, then reissues collapsed. **Measured: 55,973 of
+125,855 games kept (44.5%).**
+
+**Reissues.** Steam lists some games under several AppIDs — Portal 2,
+Assassin's Creed 2 and BRINK each appear two or three times with byte-identical
+descriptions. Being perfect content matches, they ranked *first against
+themselves*. `clean._drop_reissues` collapses rows sharing name + description +
+developer, keeping the most-reviewed (79 rows). The three-way key is deliberate:
+349 rows share only a name and are genuinely different games.
 
 Justification: games with 0 reviews have **0.9% tag coverage**; games with ≥1
 review have **100%**. The missing third of the catalogue is unreleased and
@@ -222,12 +230,26 @@ numbers per candidate, so `explain.py` and the UI score breakdown fall out of
 the architecture. It also keeps IDF within each vocabulary and makes each
 field's contribution ablatable.
 
-**Watch the complexity.** If this grows beyond roughly 20 lines over the
-single-document approach, fall back to one weighted document with token
-repetition. Simplicity wins ties.
-
 `sublinear_tf=True` on the description space — raw TF lets a word repeated 20×
 in marketing copy carry 20× weight.
+
+**Outcome (M3): it stayed cheap.** `documents.py` is 45 lines, `vectorize.py`
+is 55, and the three spaces cost roughly 15 lines more than a single document
+would have. Measured shapes: tags 449 terms, genres+categories 86, description
+30,000. The breakdown it produces is already visible in `/recommend`.
+
+### 6.4.1 The fitted vectorizers are not persisted
+
+Recommendation is item-to-item over a fixed catalogue, so no text is ever
+transformed at request time. Only the matrices and the AppID ordering are
+needed, which drops a pickle-compatibility hazard and an artifact. If a future
+feature needs to vectorise new text, refit at build time and save then.
+
+### 6.4.2 Multi-word terms are slugged, not tokenised
+
+"Turn-Based Strategy" becomes `turn_based_strategy`. Underscores are word
+characters, so scikit-learn's default tokenizer keeps it as one term instead of
+splitting it into three, without needing a custom analyzer.
 
 ### 6.5 Developers and Publishers are excluded from similarity
 
@@ -250,6 +272,13 @@ floor bounds the penalty.
 
 Keep the simplest version that works. The harness decides whether anything more
 is warranted.
+
+### 6.6.1 Cosine is written `matrix @ query.T`, not `query @ matrix.T`
+
+The natural-looking form transposes the full 56k × 30k description matrix on
+every call. Measured p50 dropped from **280 ms to 25 ms** end-to-end for
+bit-identical results. One line, so it is worth having; nothing further about
+retrieval is optimised, and no ANN index is warranted at this catalogue size.
 
 ### 6.7 Query exclusion is by AppID, never by rank
 
@@ -380,8 +409,8 @@ docker compose up                       # both services
 | **M0** | Foundation, column contract, sample dataset, test harness | ✅ done |
 | **M1** | `clean.py` + SQLite catalogue + `build.py` | ✅ done |
 | **M2** | Wilson popularity + first vertical slice (Popular page live) | ✅ done |
-| **M3** | Documents, TF-IDF, retrieval, `/recommend` | next |
-| **M4** | Evaluation harness + baselines *(before any tuning)* | |
+| **M3** | Documents, TF-IDF, retrieval, `/recommend` | ✅ done |
+| **M4** | Evaluation harness + baselines *(before any tuning)* | next |
 | **M5** | Rerank, MMR, explanations — tuned against M4 | |
 | **M6** | Streamlit UI, three modes | |
 | **M7** | Docker, README, `eda.ipynb` | |

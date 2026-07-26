@@ -21,7 +21,25 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     df["total_reviews"] = df["positive"] + df["negative"]
     df["release_year"] = df["release_date"].dt.year.astype("Int64")
 
-    return df.reset_index(drop=True)
+    return _drop_reissues(df).reset_index(drop=True)
+
+
+def _drop_reissues(df: pd.DataFrame) -> pd.DataFrame:
+    """Collapse the same game listed under several AppIDs, keeping the main one.
+
+    Steam carries legacy and regional SKUs -- Portal 2, Assassin's Creed 2 and
+    BRINK each appear two or three times with byte-identical descriptions. They
+    are perfect content matches, so without this they rank first against
+    themselves.
+
+    Matching on name *and* description *and* developer is deliberately strict:
+    349 rows share only a name and are genuinely different games.
+    """
+    return (
+        df.sort_values("total_reviews", ascending=False)
+        .drop_duplicates(subset=["name", "description", "developers"])
+        .sort_index()
+    )
 
 
 def _is_recommendable(df: pd.DataFrame) -> pd.Series:

@@ -25,3 +25,10 @@ EXCLUDE_NAME_PATTERN = r"(?i)playtest|soundtrack|\bdemo\b|\bOST\b|artbook"
 WILSON_Z = 1.96  # 95% confidence
 POPULARITY_WEIGHTS = {"quality": 0.60, "reach": 0.30, "recency": 0.10}
 RECENCY_HALF_LIFE_YEARS = 3.0
+
+# --- Similarity (see documents.py / retrieval.py) ------------------------
+# One TF-IDF space per field group, combined by weighted cosine. Tags carry
+# the most signal (451 curated terms); descriptions are 28k words of marketing
+# prose, so they are capped. Tuned by the M4 evaluation harness.
+FIELD_WEIGHTS = {"tags": 0.60, "genres": 0.15, "description": 0.25}
+N_CANDIDATES = 300

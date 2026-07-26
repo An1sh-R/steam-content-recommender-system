@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.deps import get_connection
-from api.schemas import GameOption, GameSummary
+from api.deps import get_connection, get_engine
+from api.schemas import GameOption, GameSummary, Recommendation
 from recommender import catalogue
 
 router = APIRouter()
@@ -43,6 +43,18 @@ def popular(
 ) -> list[GameSummary]:
     """The landing page: quality-aware popularity, no query needed."""
     return [GameSummary.from_row(row) for row in catalogue.browse(con, limit=k)]
+
+
+@router.get("/recommend/{appid}", response_model=list[Recommendation])
+def recommend(
+    appid: int,
+    k: int = Query(12, ge=1, le=50),
+    engine=Depends(get_engine),
+) -> list[Recommendation]:
+    """Games similar to ``appid``. The primary workflow."""
+    if not engine.knows(appid):
+        raise HTTPException(status_code=404, detail=f"No game with AppID {appid}")
+    return [Recommendation.from_row(row) for row in engine.similar(appid, k=k)]
 
 
 def _label(row: dict) -> str:

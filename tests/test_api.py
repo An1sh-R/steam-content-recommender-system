@@ -3,16 +3,22 @@ from fastapi.testclient import TestClient
 
 from api import deps
 from api.main import app
-from recommender import catalogue
+from recommender import catalogue, documents, vectorize
+from recommender.engine import Engine
 
 
 @pytest.fixture(scope="module")
 def client(games, tmp_path_factory):
     path = tmp_path_factory.mktemp("api") / "catalogue.db"
     catalogue.build_db(games, path)
+    connection = catalogue.connect(path)
+
+    matrices = vectorize.fit(documents.build_documents(games))
+    engine = Engine(matrices, games["appid"].to_numpy(), connection)
 
     deps.get_connection.cache_clear()
-    app.dependency_overrides[deps.get_connection] = lambda: catalogue.connect(path)
+    app.dependency_overrides[deps.get_connection] = lambda: connection
+    app.dependency_overrides[deps.get_engine] = lambda: engine
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -65,3 +71,33 @@ def test_search_matches_case_insensitively(client):
 
 def test_search_with_no_match_is_empty(client):
     assert client.get("/games", params={"q": "zzzznotagame"}).json() == []
+
+
+def test_recommend_returns_k_ranked_games(client):
+    appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
+    recommendations = client.get(f"/recommend/{appid}", params={"k": 6}).json()
+
+    assert len(recommendations) == 6
+    scores = [r["similarity"] for r in recommendations]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_recommend_excludes_the_query(client):
+    appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
+    recommendations = client.get(f"/recommend/{appid}").json()
+    assert all(r["appid"] != appid for r in recommendations)
+
+
+def test_recommend_exposes_the_score_breakdown(client):
+    appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
+    parts = client.get(f"/recommend/{appid}").json()[0]["parts"]
+    assert set(parts) == {"tags", "genres", "description"}
+
+
+def test_recommend_unknown_game_returns_404(client):
+    assert client.get("/recommend/-1").status_code == 404
+
+
+def test_recommend_rejects_out_of_range_k(client):
+    appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
+    assert client.get(f"/recommend/{appid}", params={"k": 0}).status_code == 422

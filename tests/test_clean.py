@@ -44,6 +44,27 @@ def test_appids_still_unique(clean_df):
     assert not clean_df["appid"].duplicated().any()
 
 
+def test_reissues_are_collapsed_keeping_the_most_reviewed():
+    """Same game, several Steam SKUs -- otherwise it ranks first against itself."""
+    df = pd.DataFrame(
+        {
+            "appid": [1, 2, 3],
+            "name": ["Portal 2", "Portal 2", "Portal 2"],
+            "description": ["a puzzle game", "a puzzle game", "a different game"],
+            "developers": ["Valve", "Valve", "Valve"],
+            "total_reviews": [100, 900, 50],
+        }
+    )
+    kept = clean._drop_reissues(df)
+
+    assert kept["appid"].tolist() == [2, 3]  # duplicate dropped, distinct game kept
+
+
+def test_same_name_different_game_is_kept(clean_df):
+    """Indie titles reuse names; only byte-identical listings are collapsed."""
+    assert not clean_df.duplicated(subset=["name", "description", "developers"]).any()
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
