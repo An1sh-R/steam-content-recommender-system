@@ -112,13 +112,19 @@ appears), `components.py` (game card, filter sidebar).
 
 ## 5. Data flow
 
-**Offline** (`make build`, ~2–3 min on the full dataset):
+**Offline** (`python -m recommender.build`, ~1 min on the full dataset):
 
 ```
 games.csv → schema (fix columns) → load (types) → clean (filter to ~56k)
           → popularity (Wilson) → documents → vectorize
           → data/artifacts/*.npz + data/processed/catalogue.db
 ```
+
+The cleaned DataFrame is passed between build steps **in memory** and never
+serialised. Nothing at serve time reads it — vectors come from `.npz`,
+metadata from SQLite — so an intermediate file would be an artifact with no
+consumer. Batch jobs that need it (the evaluation harness) call
+`load()` + `clean()` themselves.
 
 **Online** (per request):
 

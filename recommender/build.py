@@ -16,14 +16,13 @@ def build(sample: bool = False) -> None:
     print(f"loading {source.name} ...")
     raw = load.load_raw(source)
 
+    # The cleaned frame stays in memory and is handed to each build step in
+    # turn; nothing at serve time reads it, so it is never serialised.
     games = clean.clean(raw)
     print(f"catalogue: {len(games):,} of {len(raw):,} games kept")
 
-    config.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    games.to_parquet(config.GAMES_PARQUET, index=False)
-
     catalogue.build_db(games, config.CATALOGUE_DB)
-    print(f"wrote {config.GAMES_PARQUET.name} and {config.CATALOGUE_DB.name}")
+    print(f"wrote {config.CATALOGUE_DB.name}")
 
 
 def main() -> None:

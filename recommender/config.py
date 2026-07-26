@@ -12,7 +12,6 @@ SAMPLE_CSV = DATA_DIR / "sample" / "games_sample.csv"
 PROCESSED_DIR = DATA_DIR / "processed"
 ARTIFACTS_DIR = DATA_DIR / "artifacts"
 
-GAMES_PARQUET = PROCESSED_DIR / "games.parquet"
 CATALOGUE_DB = PROCESSED_DIR / "catalogue.db"
 
 # --- Catalogue filter (see clean.py) -------------------------------------
