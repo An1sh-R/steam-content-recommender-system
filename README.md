@@ -15,12 +15,21 @@ list, and explains every recommendation.
 ## Quickstart
 
 ```bash
-pip install -r requirements-dev.txt
-pytest
+docker compose up          # → UI on :8501, API docs on :8000/docs
 ```
 
-Everything runs against `data/sample/games_sample.csv` (600 games, committed),
-so a fresh clone works without downloading the full dataset.
+The image bakes in a 600-game sample catalogue, so a fresh clone runs with no
+build step and no dataset download.
+
+Or locally:
+
+```bash
+pip install -r requirements-dev.txt
+python -m recommender.build --sample
+uvicorn api.main:app --reload      # :8000
+streamlit run app/main.py          # :8501
+pytest
+```
 
 For the full catalogue, download the
 [Steam Games Dataset](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset)
@@ -44,7 +53,7 @@ See §6.1 of [`CLAUDE.md`](CLAUDE.md).
 
 - [x] **M0** — Foundation, column contract, sample dataset, tests
 - [x] **M1** — Cleaning + SQLite catalogue (56,052 of 125,855 games kept)
-- [ ] **M2** — Wilson popularity + first vertical slice
+- [x] **M2** — Wilson popularity + first vertical slice (API + UI + Docker)
 - [ ] **M3** — TF-IDF retrieval
 - [ ] **M4** — Evaluation harness
 - [ ] **M5** — Reranking, MMR, explanations

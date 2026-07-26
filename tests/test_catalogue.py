@@ -1,19 +1,13 @@
 import pytest
 
-from recommender import catalogue, clean
+from recommender import catalogue
 
 
 @pytest.fixture(scope="session")
-def con(sample_df, tmp_path_factory):
-    games = clean.clean(sample_df)
+def con(games, tmp_path_factory):
     path = tmp_path_factory.mktemp("db") / "catalogue.db"
     catalogue.build_db(games, path)
     return catalogue.connect(path)
-
-
-@pytest.fixture(scope="session")
-def games(sample_df):
-    return clean.clean(sample_df)
 
 
 def test_tables_exist(con):
@@ -74,6 +68,11 @@ def test_browse_filters_by_price_and_platform(con):
 
 def test_browse_sorts_descending(con):
     values = [r["total_reviews"] for r in catalogue.browse(con, sort_by="total_reviews", limit=20)]
+    assert values == sorted(values, reverse=True)
+
+
+def test_browse_defaults_to_popularity(con):
+    values = [r["popularity"] for r in catalogue.browse(con, limit=20)]
     assert values == sorted(values, reverse=True)
 
 

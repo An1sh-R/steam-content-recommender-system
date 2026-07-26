@@ -8,7 +8,16 @@ from __future__ import annotations
 
 import argparse
 
-from recommender import catalogue, clean, config, load
+import pandas as pd
+
+from recommender import catalogue, clean, config, load, popularity
+
+
+def prepare(raw: pd.DataFrame) -> pd.DataFrame:
+    """Cleaned catalogue with derived scores attached, ready for indexing."""
+    games = clean.clean(raw)
+    games["popularity"] = popularity.popularity_score(games)
+    return games
 
 
 def build(sample: bool = False) -> None:
@@ -18,7 +27,7 @@ def build(sample: bool = False) -> None:
 
     # The cleaned frame stays in memory and is handed to each build step in
     # turn; nothing at serve time reads it, so it is never serialised.
-    games = clean.clean(raw)
+    games = prepare(raw)
     print(f"catalogue: {len(games):,} of {len(raw):,} games kept")
 
     catalogue.build_db(games, config.CATALOGUE_DB)

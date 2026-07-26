@@ -187,6 +187,13 @@ and recency are added:
 popularity = 0.60 · wilson + 0.30 · log1p(reviews)/log1p(max) + 0.10 · recency
 ```
 
+Recency uses an exponential decay with a 3-year half-life, measured against
+*today* rather than a fixed date — so rebuilding refreshes the front page. Games
+with a future release date are clamped to age 0 rather than scoring above 1.
+
+The resulting landing page (full catalogue): Black Myth: Wukong, Schedule I,
+Baldur's Gate 3, Lethal Company, Satisfactory, Balatro, Vampire Survivors.
+
 ### 6.3 Catalogue filtered to ~56k of 125,855 games
 
 Filter: `reviews ≥ 10` AND has tags AND `description ≥ 20 words` AND not a
@@ -371,8 +378,8 @@ docker compose up                       # both services
 |---|---|---|
 | **M0** | Foundation, column contract, sample dataset, test harness | ✅ done |
 | **M1** | `clean.py` + SQLite catalogue + `build.py` | ✅ done |
-| **M2** | Wilson popularity + first vertical slice (Popular page live) | next |
-| **M3** | Documents, TF-IDF, retrieval, `/recommend` | |
+| **M2** | Wilson popularity + first vertical slice (Popular page live) | ✅ done |
+| **M3** | Documents, TF-IDF, retrieval, `/recommend` | next |
 | **M4** | Evaluation harness + baselines *(before any tuning)* | |
 | **M5** | Rerank, MMR, explanations — tuned against M4 | |
 | **M6** | Streamlit UI, three modes | |

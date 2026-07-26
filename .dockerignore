@@ -1,0 +1,20 @@
+.git/
+.gitignore
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# The 401 MB dataset and derived artifacts; the image builds from data/sample/
+data/raw/
+data/processed/
+data/artifacts/
+
+tests/
+notebooks/
+evaluation/
+scripts/
+*.md

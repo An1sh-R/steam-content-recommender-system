@@ -88,7 +88,7 @@ def browse(
     categories: list[str] | None = None,
     platform: str | None = None,
     max_price: float | None = None,
-    sort_by: str = "total_reviews",
+    sort_by: str = "popularity",
     limit: int = 60,
 ) -> list[dict]:
     """Faceted browse. Multiple genres/tags narrow the results (AND semantics)."""
@@ -120,6 +120,22 @@ def browse(
     sql = f"SELECT appid FROM games g {where} ORDER BY g.{sort_by} DESC LIMIT ?"
     appids = [row[0] for row in con.execute(sql, [*params, limit])]
     return get_games(con, appids)
+
+
+def search_names(con: sqlite3.Connection, query: str, limit: int = 20) -> list[dict]:
+    """Substring name search for the select widget, best-known games first.
+
+    Returns AppIDs, never titles alone -- 1,210 games share a name with another.
+    """
+    sql = """
+        SELECT appid, name, release_year, developers
+        FROM games
+        WHERE name LIKE ? COLLATE NOCASE
+        ORDER BY popularity DESC
+        LIMIT ?
+    """
+    rows = con.execute(sql, (f"%{query}%", limit)).fetchall()
+    return [dict(row) for row in rows]
 
 
 def distinct_values(con: sqlite3.Connection, column: str) -> list[str]:
