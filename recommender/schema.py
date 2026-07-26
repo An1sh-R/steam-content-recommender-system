@@ -84,7 +84,11 @@ RAW_COLUMNS = [
 PUBLISHED_HEADER_FIELD_COUNT = 39
 MERGED_HEADER_FIELD = "DiscountDLC count"
 
-# Only these are read into memory; the rest are dead weight for our purposes.
+# Only these are read into memory. A column earns its place by feeding
+# recommendation, browsing, or explanations -- nothing else is carried.
+#   Recommendations : redundant with Positive + Negative
+#   Achievements    : no bearing on similarity, quality or browsing
+#   Metacritic      : only 3.4% of games have a score
 USED_COLUMNS = [
     "AppID",
     "Name",
@@ -98,8 +102,6 @@ USED_COLUMNS = [
     "Linux",
     "Positive",
     "Negative",
-    "Recommendations",
-    "Achievements",
     "Developers",
     "Publishers",
     "Categories",
@@ -121,8 +123,6 @@ COLUMN_RENAME = {
     "Linux": "linux",
     "Positive": "positive",
     "Negative": "negative",
-    "Recommendations": "recommendations",
-    "Achievements": "achievements",
     "Developers": "developers",
     "Publishers": "publishers",
     "Categories": "categories",
@@ -130,7 +130,7 @@ COLUMN_RENAME = {
     "Tags": "tags",
 }
 
-NUMERIC_COLUMNS = ["price", "positive", "negative", "recommendations", "achievements"]
+NUMERIC_COLUMNS = ["price", "positive", "negative"]
 BOOLEAN_COLUMNS = ["windows", "mac", "linux"]
 MULTIVALUE_COLUMNS = ["categories", "genres", "tags"]
 

@@ -184,7 +184,7 @@ popularity = 0.60 · wilson + 0.30 · log1p(reviews)/log1p(max) + 0.10 · recenc
 ### 6.3 Catalogue filtered to ~56k of 125,855 games
 
 Filter: `reviews ≥ 10` AND has tags AND `description ≥ 20 words` AND not a
-playtest/demo/soundtrack.
+playtest/demo/soundtrack. **Measured: 56,052 of 125,855 games kept (44.5%).**
 
 Justification: games with 0 reviews have **0.9% tag coverage**; games with ≥1
 review have **100%**. The missing third of the catalogue is unreleased and
@@ -254,9 +254,31 @@ description"`, `"Highly rated by the community"`. Shared tags are selected by
 
 ### 6.9 SQLite holds the catalogue, not the vectors
 
-SQLite stores game metadata and indexed tag/genre facets — SQL is genuinely the
-right tool for faceted browse filtering. TF-IDF matrices are `.npz` on disk,
-loaded into memory once at startup.
+SQLite stores game metadata and indexed tag/genre/category facets — SQL is
+genuinely the right tool for faceted browse filtering. TF-IDF matrices are
+`.npz` on disk, loaded into memory once at startup.
+
+The DB is a **read-only derived artifact**, rebuilt from scratch by
+`recommender.build` and never written to at request time. Multi-value fields
+are exploded into indexed child tables (`game_tags`, `game_genres`,
+`game_categories`) rather than stored as delimited strings, so filtering can
+use an index. `CHILD_TABLES` is the single source of truth: adding a facet
+means adding one entry, and the tables, indexes and select-list follow.
+
+### 6.10 Read paths narrow first, then hydrate
+
+`get_games(con, appids)` is the only place rows are materialised. Anything that
+needs a page of results selects AppIDs first and passes them in.
+
+This is not stylistic. Attaching the tag/genre/category lists *before* applying
+`LIMIT` made SQLite build them for all 56k rows: the unfiltered landing-page
+query took **99 ms**. Selecting AppIDs first, plus indexes on the sortable
+columns, brought it to **2.5 ms**.
+
+Filtered browse ranges 11–203 ms depending on genre breadth (`Indie` matches
+40k of 56k games and is the worst case). That is imperceptible in a Streamlit
+UI and is deliberately left alone — optimising it would cost a denormalised
+sort key for no benefit a user could feel.
 
 ---
 
@@ -342,8 +364,8 @@ docker compose up                       # both services
 | Milestone | Contents | Status |
 |---|---|---|
 | **M0** | Foundation, column contract, sample dataset, test harness | ✅ done |
-| **M1** | `clean.py` + SQLite catalogue | next |
-| **M2** | Wilson popularity + first vertical slice (Popular page live) | |
+| **M1** | `clean.py` + SQLite catalogue + `build.py` | ✅ done |
+| **M2** | Wilson popularity + first vertical slice (Popular page live) | next |
 | **M3** | Documents, TF-IDF, retrieval, `/recommend` | |
 | **M4** | Evaluation harness + baselines *(before any tuning)* | |
 | **M5** | Rerank, MMR, explanations — tuned against M4 | |
