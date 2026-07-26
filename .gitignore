@@ -1,7 +1,20 @@
+# Python
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
 venv/
+.venv/
+.env
+
+# Full dataset (401 MB) - download separately; data/sample/ is committed
 data/raw/
 data/processed/
-tests/
+data/artifacts/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

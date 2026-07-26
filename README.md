@@ -1,203 +1,52 @@
-# 🎮 Game Recommender System
+# Game Recommender System
 
-A full-stack **hybrid video game recommender system** that combines content-based filtering with player profiling to deliver personalized game suggestions.
+A content-based Steam game recommender over ~56,000 games. Given a game you
+like, it finds similar games, reranks them by community quality, diversifies the
+list, and explains every recommendation.
 
-Deployed as a production-ready web application using modern ML + backend + cloud infrastructure.
+**Stack:** Python · scikit-learn · FastAPI · Streamlit · SQLite · Docker
 
----
-
-## 🚀 Live Demo
-
-* 🌐 Frontend: https://game-recommender-system.vercel.app
-* ⚙️ Backend API: https://game-recommender-system-k9qi.onrender.com/docs
-
----
-
-## 🧠 Features
-
-* 🎯 **Content-Based Recommendation**
-
-  * Uses TF-IDF vectorization on game metadata (genres, tags, descriptions)
-  * Computes similarity via cosine similarity
-
-* 🧩 **Player Profiling (Cold Start Solution)**
-
-  * 10-question quiz maps user preferences to gameplay traits
-  * Traits include: exploration, story, challenge, strategy, social, relaxation
-
-* 🔀 **Hybrid Recommendation System**
-
-  * Combines:
-
-    * Content similarity
-    * Game popularity
-    * Player preference match
-  * Produces a final hybrid ranking score
-
-* ⚡ **Redis Caching**
-
-  * Caches recommendations to reduce latency
-  * Improves performance for repeated queries
-
-* 👤 **User Authentication**
-
-  * Secure login/register system
-  * Passwords hashed using **bcrypt**
-  * Persistent user profiles stored in PostgreSQL
-
-* 🖼️ **Game UI Enhancements**
-
-  * Dynamic Steam images using AppID
-  * Fallback images for missing assets
+> **Status: under active development (v2).** The application is being rebuilt
+> from scratch. See [`CLAUDE.md`](CLAUDE.md) for the full design, architecture,
+> and roadmap. This README is rewritten with evaluation results at M7.
 
 ---
 
-## 🏗️ Tech Stack
+## Quickstart
 
-### Backend
-
-* FastAPI
-* PostgreSQL (Supabase)
-* Redis (Upstash)
-* Docker
-
-### Machine Learning
-
-* TF-IDF (Scikit-learn)
-* Cosine Similarity
-* Custom hybrid scoring algorithm
-
-### Frontend
-
-* HTML, CSS, JavaScript
-* Deployed on Vercel
-
----
-
-## ⚙️ System Architecture
-
-```text
-Frontend (Vercel)
-        ↓
-FastAPI Backend (Render)
-        ↓
-PostgreSQL (Supabase) + Redis (Upstash)
-        ↓
-ML Recommendation Engine
+```bash
+pip install -r requirements-dev.txt
+pytest
 ```
 
----
+Everything runs against `data/sample/games_sample.csv` (600 games, committed),
+so a fresh clone works without downloading the full dataset.
 
-## 📊 Recommendation Logic
-
-### 1. Content-Based Filtering
-
-* TF-IDF vectorization of:
-
-  * Genres
-  * Tags
-  * Game descriptions
-* Cosine similarity used to find similar games
-
-### 2. Player Profile Matching
-
-* Quiz answers → trait vector
-* Compared with game trait vectors using cosine similarity
-
-### 3. Hybrid Scoring
-
-```text
-Hybrid Score =
-  0.6 × Content Similarity +
-  0.2 × Popularity +
-  0.2 × Player Match
-```
+For the full catalogue, download the
+[Steam Games Dataset](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset)
+to `data/raw/games.csv` (401 MB, not in git).
 
 ---
 
-## 📦 API Endpoints
+## A note on the dataset
 
-### 🔐 Authentication
+The published CSV has a malformed header: it declares **39 columns** while every
+data row has **40 fields** (`DiscountDLC count` is two columns with a missing
+comma). Reading it naively mislabels 32 of 40 fields — descriptions become DLC
+counts, tags become genres, categories become publishers.
 
-* `POST /auth/register`
-* `POST /auth/login`
-
-### 🎮 Recommendations
-
-* `POST /recommend/game`
-* `POST /recommend/quiz`
-
-Interactive docs available at `/docs`
+`recommender/schema.py` documents and fixes this; `tests/test_load.py` guards it.
+See §6.1 of [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
-## 🧪 Example Request
+## Progress
 
-```json
-{
-  "game": "witcher 3",
-  "user_id": 1,
-  "quiz_answers": [5,4,3,5,2,1,4,5,3,4],
-  "top_n": 5
-}
-```
-
----
-
-## 🛠️ Local Setup
-
-### 1. Clone repo
-
-```
-git clone https://github.com/your-username/game-recommender-system.git
-cd game-recommender-system
-```
-
-### 2. Create `.env`
-
-```
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
-REDIS_URL=redis://localhost:6379/0
-```
-
-### 3. Run with Docker
-
-```
-docker-compose up --build
-```
-
-### 4. Access
-
-```
-http://localhost:8000/docs
-```
-
----
-
-## ⚠️ Notes
-
-* Uses environment variables for production compatibility
-* Automatically switches between local and deployed environments
-* Designed to handle cold-start users effectively
-
----
-
-## 🎯 Future Improvements
-
-* Collaborative filtering (user-user / item-item)
-* Embedding-based recommendations (BERT / sentence transformers)
-* Search autocomplete
-* Better ranking optimization
-
----
-
-## 👨‍💻 Author
-
-Anish Ray
-
----
-
-## ⭐ Acknowledgements
-
-* Steam dataset (Kaggle)
-* Inspired by Quantic Foundry player modeling approach
+- [x] **M0** — Foundation, column contract, sample dataset, tests
+- [ ] **M1** — Cleaning + SQLite catalogue
+- [ ] **M2** — Wilson popularity + first vertical slice
+- [ ] **M3** — TF-IDF retrieval
+- [ ] **M4** — Evaluation harness
+- [ ] **M5** — Reranking, MMR, explanations
+- [ ] **M6** — Streamlit UI
+- [ ] **M7** — Docker, docs, EDA notebook
