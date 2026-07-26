@@ -327,7 +327,9 @@ explicit decision recorded in this file.
   module import, which made it untestable. Load in an explicit function.
 - **Pure functions in the library.** Pass data in, return data out. Side effects
   live in `build.py` and `catalogue.py`.
-- **`ruff` for lint and format.** Line length 100.
+- **No linter or formatter.** Readable code and tests are the standard; keep
+  lines around 100 characters and formatting consistent with what is already
+  there. Deliberately one less dependency and one less config file.
 - **Tests colocated by module name**: `recommender/clean.py` → `tests/test_clean.py`.
 - Prefer `pathlib` over `os.path`; f-strings over `%` and `.format()`.
 
@@ -337,7 +339,7 @@ explicit decision recorded in this file.
 
 1. Work milestone by milestone (§11). Each milestone ends runnable.
 2. Write the test alongside the module, not after the milestone.
-3. Run `pytest` and `ruff check` before considering a milestone done.
+3. Run `pytest` before considering a milestone done.
 4. Anything that changes ranking behaviour → re-run the evaluation harness and
    report the delta.
 5. Record non-obvious decisions in §6 of this file as they are made.
@@ -356,7 +358,6 @@ Plain commands, no build tool — everything is one obvious line.
 pip install -r requirements-dev.txt
 
 pytest                                  # tests
-ruff check . && ruff format .           # lint + format
 
 python -m recommender.build --sample    # build against the committed 600-game sample
 python -m recommender.build             # build against the full dataset
