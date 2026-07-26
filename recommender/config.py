@@ -27,8 +27,13 @@ POPULARITY_WEIGHTS = {"quality": 0.60, "reach": 0.30, "recency": 0.10}
 RECENCY_HALF_LIFE_YEARS = 3.0
 
 # --- Similarity (see documents.py / retrieval.py) ------------------------
-# One TF-IDF space per field group, combined by weighted cosine. Tags carry
-# the most signal (451 curated terms); descriptions are 28k words of marketing
-# prose, so they are capped. Tuned by the M4 evaluation harness.
-FIELD_WEIGHTS = {"tags": 0.60, "genres": 0.15, "description": 0.25}
+# One TF-IDF space per field group, combined by weighted cosine.
+#
+# Set by the M4 evaluation harness, not by hand. My prior was 0.60/0.15/0.25 on
+# the reasoning that curated tags beat marketing prose; the sweep disagreed and
+# descriptions earn nearly as much weight as tags (NDCG@10 0.247 -> 0.256,
+# significant on a held-out query sample). The surface is flat, though: every
+# sensible split lands within ~5%, while dropping to a single concatenated
+# space costs 46%. Having three spaces matters far more than their exact ratio.
+FIELD_WEIGHTS = {"tags": 0.35, "genres": 0.20, "description": 0.45}
 N_CANDIDATES = 300

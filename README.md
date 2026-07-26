@@ -37,6 +37,29 @@ to `data/raw/games.csv` (401 MB, not in git).
 
 ---
 
+## Results
+
+Measured on 55,973 games with 500 stratified queries. Ground truth is a
+**held-out tag protocol** — each game's tags are split in half, the model is
+fitted on one half, relevance is judged on the other, so the judging signal is
+never in the feature space.
+
+| model | NDCG@10 | tie rate | same publisher |
+|---|--:|--:|--:|
+| **weighted, three TF-IDF spaces** | **0.259** | 0.002 | 8.8% |
+| tags only | 0.221 | 0.104 | 2.4% |
+| description only | 0.180 | 0.009 | 9.2% |
+| single concatenated space | 0.169 | 0.000 | 7.5% |
+| popularity baseline | 0.077 | 0.000 | 0.0% |
+| random | 0.075 | 0.980 | 0.0% |
+
+Three weighted spaces beat one concatenated document by **53%** and the
+popularity baseline by **3.4×**. Full table, including diversity, novelty and
+coverage: [`evaluation/results.md`](evaluation/results.md).
+
+Tag overlap is a proxy for relevance, not human judgement — it ranks systems
+reliably, it does not prove any individual recommendation is good.
+
 ## A note on the dataset
 
 The published CSV has a malformed header: it declares **39 columns** while every
@@ -55,7 +78,7 @@ See §6.1 of [`CLAUDE.md`](CLAUDE.md).
 - [x] **M1** — Cleaning + SQLite catalogue (55,973 of 125,855 games kept)
 - [x] **M2** — Wilson popularity + first vertical slice (API + UI + Docker)
 - [x] **M3** — TF-IDF retrieval, `/recommend/{appid}` (~25 ms per query)
-- [ ] **M4** — Evaluation harness
+- [x] **M4** — Evaluation harness, baselines, weight sweep
 - [ ] **M5** — Reranking, MMR, explanations
 - [ ] **M6** — Streamlit UI
 - [ ] **M7** — Docker, docs, EDA notebook

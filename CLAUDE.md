@@ -222,8 +222,20 @@ shared space, prose dominates the vocabulary and distorts IDF for tags.
 Three spaces, combined by weighted cosine:
 
 ```
-similarity = 0.60·cos(tags) + 0.15·cos(genres+categories) + 0.25·cos(description)
+similarity = 0.35·cos(tags) + 0.20·cos(genres+categories) + 0.45·cos(description)
 ```
+
+**Validated in M4 (NDCG@10, 55,973 games, 500 stratified queries):**
+
+| | NDCG@10 |
+|---|--:|
+| weighted, three spaces | **0.259** |
+| tags only | 0.221 |
+| **single concatenated space** | **0.169** |
+| popularity baseline | 0.077 |
+
+Three spaces beat one concatenated document by **+53%**. That is the decision
+justified, and it is now a measurement rather than an argument.
 
 The decisive argument is explainability: this yields three *named* similarity
 numbers per candidate, so `explain.py` and the UI score breakdown fall out of
@@ -232,6 +244,16 @@ field's contribution ablatable.
 
 `sublinear_tf=True` on the description space — raw TF lets a word repeated 20×
 in marketing copy carry 20× weight.
+
+**My prior about the weights was wrong.** I argued 0.60/0.15/0.25 from field
+precision: 451 curated tags must beat 28,000 words of marketing prose. The
+sweep says descriptions deserve *more* weight than tags (0.247 → 0.259 NDCG@10,
++0.0093 with a 95% bootstrap CI of [+0.0059, +0.0127] on a fresh 800-query
+sample). Descriptions evidently carry mechanics and setting that tags miss.
+
+The surface is **flat**: every sensible split lands within ~5%, while collapsing
+to one space costs 46%. *Having* three spaces matters far more than their ratio,
+so do not spend effort re-tuning these numbers.
 
 **Outcome (M3): it stayed cheap.** `documents.py` is 45 lines, `vectorize.py`
 is 55, and the three spaces cost roughly 15 lines more than a single document
@@ -293,6 +315,42 @@ One line each. `"Shares 9 tags"`, `"Similar genres"`, `"Similar gameplay
 description"`, `"Highly rated by the community"`. Shared tags are selected by
 *rarity* (highest IDF), because the rarest shared tag is the most informative.
 `explain.py` returns structured data; formatting stays in the UI.
+
+### 6.8.1 Evaluation: the held-out tag protocol
+
+There are no user interactions in this dataset, so there is no behavioural
+ground truth. The system is evaluated as what it is — an IR system.
+
+Each game's tags are split in half. The model under evaluation is fitted on one
+half; relevance is Jaccard overlap on the other. **The judging signal is never
+in the feature space**, so the comparison is not circular — the trap most
+attribute-based proxies fall into. The evaluation model is a separate fit from
+the production model, which uses all tags.
+
+Metrics must be *actionable* — each one has to change what we do next:
+
+| metric | answers |
+|---|---|
+| NDCG@10 | Is the ranking better? (headline) |
+| Recall@50 | Is retrieval or ranking the limit? |
+| unique@10 | Do we recycle the same few games? |
+| diversity@10 | Are results near-duplicates? (what MMR must fix) |
+| novelty | Are we just showing blockbusters? |
+| tie rate | Do scores actually discriminate? |
+| same publisher | Have we regressed to V1? |
+| self-retrieval | Does a game recommend itself? (must be 0) |
+
+**Dropped for failing that bar:** MAP@10 (moves with NDCG) and Precision@10
+(needs an arbitrary cut-off; at Jaccard ≥ 0.3 on half-sized tag sets it read
+~0.08 for every model and ordered them identically to NDCG).
+
+`recall@50` is low everywhere (~0.06). The "ideal top-10" is whichever games
+share the most held-out tags, often obscure titles with near-identical tag sets
+rather than good recommendations. Read it as a *relative* signal between models.
+
+**Tag overlap is a proxy for relevance, not human judgement.** It ranks systems
+reliably; it does not prove any single recommendation is good. Say so in the
+README rather than implying more rigour than the protocol delivers.
 
 ### 6.9 SQLite holds the catalogue, not the vectors
 
@@ -410,8 +468,8 @@ docker compose up                       # both services
 | **M1** | `clean.py` + SQLite catalogue + `build.py` | ✅ done |
 | **M2** | Wilson popularity + first vertical slice (Popular page live) | ✅ done |
 | **M3** | Documents, TF-IDF, retrieval, `/recommend` | ✅ done |
-| **M4** | Evaluation harness + baselines *(before any tuning)* | next |
-| **M5** | Rerank, MMR, explanations — tuned against M4 | |
+| **M4** | Evaluation harness + baselines *(before any tuning)* | ✅ done |
+| **M5** | Rerank, MMR, explanations — tuned against M4 | next |
 | **M6** | Streamlit UI, three modes | |
 | **M7** | Docker, README, `eda.ipynb` | |
 
