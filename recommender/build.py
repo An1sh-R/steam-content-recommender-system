@@ -30,12 +30,17 @@ def build(sample: bool = False) -> None:
     games = prepare(raw)
     print(f"catalogue: {len(games):,} of {len(raw):,} games kept")
 
+    # The database is written first because it is the step that can fail on a
+    # rebuild: a running API holds catalogue.db open, and Windows refuses to
+    # replace it. Doing it before the vectors means that failure leaves the
+    # artifacts untouched rather than newer than the database they index.
+    catalogue.build_db(games, config.CATALOGUE_DB)
+
     matrices = vectorize.fit(documents.build_documents(games))
     for name, matrix in matrices.items():
         print(f"  {name:12s} {matrix.shape[0]:,} x {matrix.shape[1]:,}")
     vectorize.save(matrices, games["appid"].to_numpy(), config.ARTIFACTS_DIR)
 
-    catalogue.build_db(games, config.CATALOGUE_DB)
     print(f"wrote {config.CATALOGUE_DB.name} and vectors in {config.ARTIFACTS_DIR.name}/")
 
 
