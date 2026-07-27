@@ -91,3 +91,25 @@ def test_distinct_values_is_ordered_by_frequency(con):
         for g in genres[:5]
     ]
     assert counts == sorted(counts, reverse=True)
+
+
+def test_name_search_is_served_by_the_covering_index(con):
+    """The typeahead must not walk idx_games_popularity testing LIKE per row.
+
+    That plan is 0.1 ms for "a" and 1,070 ms for a title matching nothing -- and
+    typing a specific title is exactly what the widget is for. See search_names.
+    """
+    plan = [row[-1] for row in con.execute(
+        "EXPLAIN QUERY PLAN " + catalogue.SEARCH_SQL, ("%x%", 20)
+    )]
+
+    assert any("COVERING INDEX idx_games_search" in step for step in plan), plan
+    assert not any("idx_games_popularity" in step for step in plan), plan
+
+
+def test_name_search_still_ranks_by_popularity(con):
+    """The + that defeats the index must not change the answer."""
+    rows = catalogue.search_names(con, "a", limit=10)
+    by_appid = {r["appid"]: r for r in catalogue.get_games(con, [r["appid"] for r in rows])}
+    scores = [by_appid[r["appid"]]["popularity"] for r in rows]
+    assert scores == sorted(scores, reverse=True)

@@ -28,6 +28,20 @@ CHILD_TABLES = {
 PLATFORMS = {"windows", "mac", "linux"}
 SORT_COLUMNS = {"total_reviews", "release_year", "price", "name", "popularity"}
 
+# Exactly what the typeahead selects and orders by, so its scan is served by an
+# index and never touches the games table -- which carries the descriptions and
+# is ~180 MB. See search_names.
+SEARCH_COLUMNS = ("name", "popularity", "release_year", "developers", "appid")
+
+# Module level so the test can assert on its query plan without restating it.
+SEARCH_SQL = """
+    SELECT appid, name, release_year, developers
+    FROM games
+    WHERE name LIKE ? COLLATE NOCASE
+    ORDER BY +popularity DESC
+    LIMIT ?
+"""
+
 # Re-joins each child table into a comma-separated column, so reads return
 # display-ready rows without the caller issuing extra queries.
 _LIST_COLUMNS = ", ".join(
@@ -52,6 +66,10 @@ def build_db(df: pd.DataFrame, path: Path) -> None:
         # new sort columns (popularity, M2) are picked up automatically.
         for column in SORT_COLUMNS & set(games.columns):
             con.execute(f"CREATE INDEX idx_games_{column} ON games({column})")
+
+        if set(SEARCH_COLUMNS) <= set(games.columns):
+            covered = ", ".join(SEARCH_COLUMNS)
+            con.execute(f"CREATE INDEX idx_games_search ON games({covered})")
 
         for column, (table, value_column) in CHILD_TABLES.items():
             pairs = df[["appid", column]].explode(column).dropna()
@@ -132,15 +150,16 @@ def search_names(con: sqlite3.Connection, query: str, limit: int = 20) -> list[d
     """Substring name search for the select widget, best-known games first.
 
     Returns AppIDs, never titles alone -- 1,210 games share a name with another.
+
+    The ``+`` on ``popularity`` is load-bearing, not a typo. Without it SQLite
+    satisfies the ORDER BY by walking idx_games_popularity and testing LIKE row
+    by row until it has ``limit`` matches. That is fast for a common substring
+    and catastrophic for a specific one: 0.1 ms for "a" but 1,070 ms for a title
+    that matches nothing -- and typing a specific title is what a typeahead is
+    for. The unary plus makes the ordering non-indexable, so SQLite scans
+    idx_games_search once and sorts the handful of matches: a flat ~6 ms.
     """
-    sql = """
-        SELECT appid, name, release_year, developers
-        FROM games
-        WHERE name LIKE ? COLLATE NOCASE
-        ORDER BY popularity DESC
-        LIMIT ?
-    """
-    rows = con.execute(sql, (f"%{query}%", limit)).fetchall()
+    rows = con.execute(SEARCH_SQL, (f"%{query}%", limit)).fetchall()
     return [dict(row) for row in rows]
 
 
