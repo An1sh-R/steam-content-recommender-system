@@ -149,7 +149,6 @@ evaluation/      scripts for measuring recommendation quality
 tests/           the test suite
 data/sample/     600-game sample, so the project runs out of the box
 docs/            engineering notes and screenshots
-eda.ipynb        a look at the dataset and what shaped the design
 ```
 
 ---

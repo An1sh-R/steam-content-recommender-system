@@ -12,9 +12,8 @@ Three documents, three jobs:
 | **this file** | Why it is built this way, and what was measured |
 | [`CLAUDE.md`](../CLAUDE.md) | Exhaustive developer guide and source of truth |
 
-Raw numbers live in [`evaluation/results.md`](../evaluation/results.md);
-the exploratory evidence is in [`eda.ipynb`](../eda.ipynb), which runs against
-the committed sample so it executes on a fresh clone with no download.
+Raw numbers live in [`evaluation/results.md`](../evaluation/results.md), which
+`python -m evaluation.run_eval` regenerates.
 
 ---
 

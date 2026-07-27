@@ -21,7 +21,6 @@ explainability, and demonstrable engineering judgement — not for scale.
 | `docs/ENGINEERING.md` | interested engineer | Decisions, evaluation, experiments, trade-offs. |
 | **`CLAUDE.md`** (this file) | anyone changing the code | Exhaustive source of truth. |
 | `evaluation/results.md` | — | Generated metric tables. Never hand-edited. |
-| `eda.ipynb` | — | Exploratory evidence. Presentation only, no project logic. |
 
 Keep the README free of deep technical discussion; it belongs in
 `docs/ENGINEERING.md`, and its full reasoning belongs in §6 below.
@@ -633,8 +632,6 @@ python -m evaluation.run_eval           # evaluation -> evaluation/results.md
 uvicorn api.main:app --reload           # API
 streamlit run app/main.py               # UI
 docker compose up                       # both services
-
-jupyter lab eda.ipynb                   # EDA notebook (presentation only)
 ```
 
 **Regenerating the README screenshots** is a rare manual task and deliberately
@@ -655,7 +652,7 @@ browser is not worth adding to a project whose dependency list is this short.
 | **M4** | Evaluation harness + baselines *(before any tuning)* | ✅ done |
 | **M5** | Rerank + explanations, tuned against M4 (MMR tried, removed) | ✅ done |
 | **M6** | Streamlit UI, two modes | ✅ done |
-| **M7** | README, architecture diagrams, `eda.ipynb`, packaging | ✅ done |
+| **M7** | README, architecture diagrams, packaging | ✅ done |
 
 ### Future improvements (explicitly out of scope for now)
 
