@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import requests
 import streamlit as st
+from streamlit import config as st_config
 
 from app import api_client, components
 
@@ -48,10 +49,33 @@ def load_recommendations(appid: int, k: int) -> list[dict]:
     return api_client.recommend(appid, k=k)
 
 
+def theme_toggle() -> None:
+    """Switch between Streamlit's built-in light and dark themes.
+
+    Sets the base theme rather than injecting CSS, so every widget follows along
+    without the app carrying a stylesheet. The rerun is what repaints, and it
+    only fires when the switch actually moved.
+    """
+    # The theme option is process-wide while session_state is per-session, so a
+    # new tab seeds its switch from the theme actually in effect rather than
+    # showing "off" over a dark page.
+    in_effect = st_config.get_option("theme.base") == "dark"
+    current = st.session_state.setdefault("dark_mode", in_effect)
+
+    dark = st.sidebar.toggle("Dark mode", value=current)
+    if dark != current:
+        st.session_state.dark_mode = dark
+        st_config.set_option("theme.base", "dark" if dark else "light")
+        st.rerun()
+
+
 def browse_page() -> None:
     st.subheader("Browse the catalogue")
 
-    query = st.text_input("Search by title", placeholder="e.g. Hades")
+    query = st.text_input(
+        "Search by title (official titles work best)",
+        placeholder="e.g. Hades",
+    )
     filters, sorting = st.columns([3, 1])
     genres = filters.multiselect("Genres", load_genres())
     sort_label = sorting.selectbox("Sort by", list(SORT_OPTIONS))
@@ -76,7 +100,10 @@ def browse_page() -> None:
 def similar_page() -> None:
     st.subheader("Find games like one you love")
 
-    query = st.text_input("Search for a game", placeholder="e.g. Stardew Valley")
+    query = st.text_input(
+        "Search for a game (official titles work best)",
+        placeholder="e.g. Stardew Valley",
+    )
     options = load_options(query)
     if not options:
         st.info("No games match that title.")
@@ -117,6 +144,8 @@ def main() -> None:
         "Similarity comes from tags, genres and descriptions. Results are then "
         "scaled by a Wilson-based community quality score."
     )
+    st.sidebar.divider()
+    theme_toggle()
 
     if mode == "Browse":
         browse_page()
