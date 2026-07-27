@@ -53,6 +53,11 @@ with no filters and you get the best-reviewed games as a starting point.
 
 ![Recommend](docs/screenshots/recommend.png)
 
+**The recommendations** — 5, 10 or 20 games, each with a line or two saying why
+it's there.
+
+![Recommendation results](docs/screenshots/results.png)
+
 ---
 
 ## How it works
@@ -123,17 +128,26 @@ clone — nothing to download, nothing to configure.
 <details>
 <summary><b>Prefer to run it without Docker?</b></summary>
 
+Install dependencies:
+
 ```bash
 pip install -r requirements-dev.txt
-python -m recommender.build --sample    # takes a few seconds
-uvicorn api.main:app --reload           # localhost:8000
-streamlit run app/main.py               # localhost:8501
+python -m recommender.build --sample
 ```
 
-To use the full catalogue of 55,973 games, download the
-[Steam Games Dataset](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset)
-to `data/raw/games.csv`, then run `python -m recommender.build`. It takes about a
-minute.
+Start the API (Terminal 1):
+
+```bash
+uvicorn api.main:app --reload
+```
+
+Start the Streamlit UI (Terminal 2):
+
+```bash
+streamlit run app/main.py
+```
+
+Open **http://localhost:8501** in your browser.
 
 </details>
 
