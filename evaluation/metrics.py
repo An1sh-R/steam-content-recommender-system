@@ -8,6 +8,7 @@ we do next:
     unique@10      Do we recycle the same few games?   -- detects a stuck model
     diversity@10   Are results near-duplicates?        -- what MMR must fix
     novelty        Are we just showing blockbusters?   -- popularity bias
+    poorly_rated   Are we recommending bad games?      -- what rerank is for
     tie_rate       Do scores actually discriminate?    -- V1 died of this
     same_publisher Have we regressed to V1?            -- integrity guard
     self_retrieval Does a game recommend itself?       -- must be 0
@@ -65,6 +66,18 @@ def intra_list_diversity(
 def novelty(ranked_rows: np.ndarray, popularity_percentile: np.ndarray, k: int = 10) -> float:
     """1 - mean popularity percentile. Higher means less blockbuster-biased."""
     return float(1 - popularity_percentile[ranked_rows[:k]].mean())
+
+
+def poorly_rated_rate(
+    ranked_rows: np.ndarray, review_ratio: np.ndarray, k: int = 10, threshold: float = 0.70
+) -> float:
+    """Share of the page holding games the community did not like.
+
+    Added in M5. NDCG cannot see this by construction -- tag overlap is blind to
+    whether a game is any good -- so without it the quality prior has no metric
+    that can justify it, only an argument.
+    """
+    return float((review_ratio[ranked_rows[:k]] < threshold).mean())
 
 
 def tie_rate(scores: np.ndarray, k: int = 50) -> float:

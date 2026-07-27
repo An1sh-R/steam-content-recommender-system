@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from recommender import schema
@@ -138,8 +139,27 @@ def search_names(con: sqlite3.Connection, query: str, limit: int = 20) -> list[d
     return [dict(row) for row in rows]
 
 
+def value_counts(con: sqlite3.Connection, column: str) -> dict[str, int]:
+    """How many games carry each value, most common first.
+
+    Browse uses the keys as facet options; explanations use the counts, because
+    the rarest shared tag is the one that says something.
+    """
+    table, value_column = CHILD_TABLES[column]
+    sql = f"SELECT {value_column}, COUNT(*) FROM {table} GROUP BY {value_column} ORDER BY 2 DESC"
+    return {row[0]: row[1] for row in con.execute(sql)}
+
+
 def distinct_values(con: sqlite3.Connection, column: str) -> list[str]:
     """Facet options for the browse UI, most common first."""
-    table, value_column = CHILD_TABLES[column]
-    sql = f"SELECT {value_column} FROM {table} GROUP BY {value_column} ORDER BY COUNT(*) DESC"
-    return [row[0] for row in con.execute(sql).fetchall()]
+    return list(value_counts(con, column))
+
+
+def popularity_by_appid(con: sqlite3.Connection, appids) -> np.ndarray:
+    """Popularity aligned to the given AppID order, i.e. to the TF-IDF rows.
+
+    Reranking needs a popularity per matrix row. Reading it from the catalogue
+    at startup keeps it out of the .npz artifacts, which stay purely vectors.
+    """
+    scores = dict(con.execute("SELECT appid, popularity FROM games"))
+    return np.array([scores.get(int(appid), 0.0) for appid in appids], dtype=float)

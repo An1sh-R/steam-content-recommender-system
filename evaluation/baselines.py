@@ -14,7 +14,7 @@ import pandas as pd
 from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from recommender import documents, retrieval, vectorize
+from recommender import config, documents, mmr, rerank, retrieval, vectorize
 
 
 @dataclass
@@ -24,8 +24,12 @@ class Model:
     rank: Callable[[int, int], tuple[np.ndarray, np.ndarray]]
 
 
-def build(games: pd.DataFrame, weight_sweep: dict[str, dict[str, float]]) -> list[Model]:
-    """Baselines plus the field-weighted model and its ablations."""
+def build(
+    games: pd.DataFrame,
+    weight_sweep: dict[str, dict[str, float]],
+    stage_sweep: dict[str, tuple[str, dict]] | None = None,
+) -> list[Model]:
+    """Baselines, the field-weighted model and its ablations, and the M5 stages."""
     docs = documents.build_documents(games)
     matrices = vectorize.fit(docs)
     popularity = games["popularity"].to_numpy()
@@ -49,6 +53,10 @@ def build(games: pd.DataFrame, weight_sweep: dict[str, dict[str, float]]) -> lis
         Model(f"weighted {name}", _describe(weights), _tfidf_ranker(matrices, weights))
         for name, weights in weight_sweep.items()
     ]
+    models += [
+        Model(name, note, _pipeline_ranker(matrices, popularity, **stage))
+        for name, (note, stage) in (stage_sweep or {}).items()
+    ]
     return models
 
 
@@ -62,6 +70,24 @@ def _tfidf_ranker(matrices, weights=None):
     def rank(row: int, n: int):
         rows, scores, _ = retrieval.similar_rows(matrices, row, n=n, weights=weights)
         return rows, scores
+
+    return rank
+
+
+def _pipeline_ranker(matrices, popularity: np.ndarray, quality: bool, diversity: float):
+    """The shipped pipeline, with each M5 stage switchable so it can be ablated.
+
+    Retrieval always widens to N_CANDIDATES first; the stages under test only
+    change how that pool is ordered and cut, which is exactly what production
+    does.
+    """
+
+    def rank(row: int, n: int):
+        rows, scores, _ = retrieval.similar_rows(matrices, row, n=config.N_CANDIDATES)
+        if quality:
+            scores = rerank.apply(scores, popularity[rows])
+        picked = mmr.select(scores, retrieval.pairwise(matrices, rows), n, diversity)
+        return rows[picked], scores[picked]
 
     return rank
 

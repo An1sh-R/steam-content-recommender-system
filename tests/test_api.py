@@ -73,13 +73,34 @@ def test_search_with_no_match_is_empty(client):
     assert client.get("/games", params={"q": "zzzznotagame"}).json() == []
 
 
-def test_recommend_returns_k_ranked_games(client):
+def test_recommend_returns_k_distinct_games(client):
+    """Ordering is asserted in test_retrieval, where the ranking score is visible.
+
+    The API deliberately exposes ``similarity`` rather than the final score, and
+    similarity is *not* monotone down the page once the quality prior applies --
+    that reordering is exactly what reranking is for.
+    """
     appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
     recommendations = client.get(f"/recommend/{appid}", params={"k": 6}).json()
 
     assert len(recommendations) == 6
-    scores = [r["similarity"] for r in recommendations]
-    assert scores == sorted(scores, reverse=True)
+    assert len({r["appid"] for r in recommendations}) == 6
+
+
+def test_recommend_honours_the_diversity_knob(client):
+    """MMR deliberately breaks strict similarity order; that is the whole point."""
+    appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
+    focused = client.get(f"/recommend/{appid}", params={"k": 10, "diversity": 0}).json()
+    spread = client.get(f"/recommend/{appid}", params={"k": 10, "diversity": 0.8}).json()
+
+    assert [r["appid"] for r in focused] != [r["appid"] for r in spread]
+    assert focused[0]["appid"] == spread[0]["appid"]
+
+
+def test_recommend_explains_itself(client):
+    appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
+    recommendations = client.get(f"/recommend/{appid}").json()
+    assert all(r["reasons"] for r in recommendations)
 
 
 def test_recommend_excludes_the_query(client):

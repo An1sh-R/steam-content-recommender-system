@@ -60,6 +60,30 @@ coverage: [`evaluation/results.md`](evaluation/results.md).
 Tag overlap is a proxy for relevance, not human judgement — it ranks systems
 reliably, it does not prove any individual recommendation is good.
 
+### What reranking and diversification actually buy
+
+Both stages were measured before being kept, against the retrieval-only model:
+
+| stage | NDCG@10 | poor@10 | diversity@10 |
+|---|--:|--:|--:|
+| retrieval only | 0.259 | 28.7% | 0.808 |
+| + quality rerank | 0.261 | **13.3%** | 0.814 |
+| + MMR (shipped) | 0.257 | **11.2%** | **0.831** |
+
+`poor@10` is the share of a page rated below 70% positive. **Untouched
+retrieval puts a badly-reviewed game in nearly 3 of every 10 slots**; the
+quality prior halves that at no measurable cost in ranking quality (+0.0011
+NDCG, 95% CI [−0.0012, +0.0034] — indistinguishable from zero).
+
+Both settings were swept, and both of my hand-picked values were wrong — the
+quality floor and the MMR strength were each too aggressive. See §6.6 and
+§6.6.2 of [`CLAUDE.md`](CLAUDE.md).
+
+**MMR does not fix franchise runs**, and the write-up says so: "games like
+Assassin's Creed Odyssey" still returns 6 Assassin's Creed games, because
+sequels are similar to the query *and to each other* in the very space MMR
+penalises. Turning it up far enough to break them replaces them with noise.
+
 ## A note on the dataset
 
 The published CSV has a malformed header: it declares **39 columns** while every
@@ -79,6 +103,6 @@ See §6.1 of [`CLAUDE.md`](CLAUDE.md).
 - [x] **M2** — Wilson popularity + first vertical slice (API + UI + Docker)
 - [x] **M3** — TF-IDF retrieval, `/recommend/{appid}` (~25 ms per query)
 - [x] **M4** — Evaluation harness, baselines, weight sweep
-- [ ] **M5** — Reranking, MMR, explanations
+- [x] **M5** — Quality reranking, MMR, explanations (~30 ms per query)
 - [ ] **M6** — Streamlit UI
 - [ ] **M7** — Docker, docs, EDA notebook

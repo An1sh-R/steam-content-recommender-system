@@ -28,9 +28,23 @@ WEIGHT_SWEEP = {
     "no description": {"tags": 0.80, "genres": 0.20},
 }
 
+# The M5 stages, ablated against `weighted tuned` (which is this pipeline with
+# both stages off). Each has to earn its place: rerank must not cost NDCG,
+# MMR must buy diversity cheaply enough to be worth the loss.
+STAGE_BASELINE = "weighted tuned"
+STAGE_SWEEP = {
+    "rerank": ("quality prior only", {"quality": True, "diversity": 0.0}),
+    "rerank + mmr 0.15": ("shipped", {"quality": True, "diversity": config.DEFAULT_DIVERSITY}),
+    "rerank + mmr 0.30": ("d=0.30", {"quality": True, "diversity": 0.30}),
+    "rerank + mmr 0.50": ("d=0.50", {"quality": True, "diversity": 0.50}),
+    "mmr 0.15 alone": ("no quality prior", {"quality": False, "diversity": 0.15}),
+}
 
-def evaluate(model: baselines.Model, queries, relevance, held_out, popularity_pct, publishers):
-    scores = {name: [] for name in ("ndcg", "recall", "diversity", "novelty", "tie")}
+
+def evaluate(
+    model: baselines.Model, queries, relevance, held_out, popularity_pct, publishers, ratio
+):
+    scores = {name: [] for name in ("ndcg", "recall", "diversity", "novelty", "poor", "tie")}
     publisher_rates, reached, latencies, self_hits = [], set(), [], 0
 
     for query in queries:
@@ -45,6 +59,7 @@ def evaluate(model: baselines.Model, queries, relevance, held_out, popularity_pc
         scores["recall"].append(metrics.recall_at_k(ranked, truth))
         scores["diversity"].append(metrics.intra_list_diversity(ranked, held_out))
         scores["novelty"].append(metrics.novelty(ranked, popularity_pct))
+        scores["poor"].append(metrics.poorly_rated_rate(ranked, ratio))
         scores["tie"].append(metrics.tie_rate(ranking_scores))
 
         rate = metrics.same_publisher_rate(ranked, publishers, int(query))
@@ -87,17 +102,52 @@ def main() -> None:
 
     popularity_pct = games["popularity"].rank(pct=True).to_numpy()
     publishers = games["publishers"].to_numpy()
+    ratio = (games["positive"] / games["total_reviews"]).to_numpy()
 
     rows = []
-    for model in baselines.build(evaluated, WEIGHT_SWEEP):
+    for model in baselines.build(evaluated, WEIGHT_SWEEP, STAGE_SWEEP):
         started = time.perf_counter()
         rows.append(
-            evaluate(model, queries, relevance, held_out, popularity_pct, publishers)
+            evaluate(model, queries, relevance, held_out, popularity_pct, publishers, ratio)
         )
         print(f"  {model.name:22s} ndcg={rows[-1]['ndcg']:.3f}  ({time.perf_counter()-started:.0f}s)")
 
     _write(pd.DataFrame(rows), games, queries, args.sample)
     print(f"\nwrote {RESULTS}")
+
+
+def _stage_section(table: pd.DataFrame) -> list[str]:
+    """Rerank and MMR against the same retrieval, as deltas.
+
+    Absolute numbers cannot settle these two: the tag-overlap proxy is blind to
+    whether a game is worth playing, and diversity is a cost in NDCG by
+    construction. What it can do is *bound the price*, which is the decision.
+    """
+    rows = table.set_index("model")
+    wanted = [STAGE_BASELINE, *(name for name in STAGE_SWEEP if name in rows.index)]
+    if STAGE_BASELINE not in rows.index:
+        return []
+
+    base = rows.loc[STAGE_BASELINE]
+    lines = [
+        "",
+        "## M5 stages: what rerank and MMR cost, and what they buy",
+        "",
+        f"Same retrieval for every row; `{STAGE_BASELINE}` is both stages off.",
+        "NDCG is the price. `poor@10` and `diversity@10` are the goods.",
+        "",
+        "| stage | notes | NDCG@10 | Δ | poor@10 | Δ | diversity@10 | Δ | novelty |",
+        "|---|---|--:|--:|--:|--:|--:|--:|--:|",
+    ]
+    for name in wanted:
+        r = rows.loc[name]
+        lines.append(
+            f"| {name} | {r['note']} | {r['ndcg']:.3f} | {r['ndcg'] - base['ndcg']:+.3f} | "
+            f"{r['poor']:.1%} | {r['poor'] - base['poor']:+.1%} | "
+            f"{r['diversity']:.3f} | {r['diversity'] - base['diversity']:+.3f} | "
+            f"{r['novelty']:.3f} |"
+        )
+    return lines
 
 
 def _write(table: pd.DataFrame, games, queries, sample: bool) -> None:
@@ -130,14 +180,16 @@ def _write(table: pd.DataFrame, games, queries, sample: bool) -> None:
         "",
         "## Beyond accuracy",
         "",
-        "| model | unique@10 | diversity@10 | novelty | tie rate | same publisher | p50 |",
+        "| model | unique@10 | diversity@10 | novelty | poor@10 | tie rate | same publisher |",
         "|---|--:|--:|--:|--:|--:|--:|",
     ]
     for _, r in table.iterrows():
         lines.append(
             f"| {r['model']} | {r['unique']:.1%} | {r['diversity']:.3f} | {r['novelty']:.3f} | "
-            f"{r['tie']:.3f} | {r['publisher']:.1%} | {r['p50']:.0f} ms |"
+            f"{r['poor']:.1%} | {r['tie']:.3f} | {r['publisher']:.1%} |"
         )
+
+    lines += _stage_section(table)
 
     lines += [
         "",
@@ -161,7 +213,14 @@ def _write(table: pd.DataFrame, games, queries, sample: bool) -> None:
         "games share the most held-out tags, which are often obscure titles with "
         "near-identical tag sets rather than good recommendations. Read it as a "
         "*relative* signal between models, not as an absolute miss rate.",
-        "- **Diversity@10** is what MMR (M5) must improve without costing NDCG.",
+        "- **`poor@10`** is the share of the page rated below 70% positive. NDCG "
+        "cannot see it -- tag overlap is blind to whether a game is any good -- "
+        "so it is the only metric that can justify the quality prior.",
+        "- **MMR's limit is visible in the numbers.** It buys diversity cheaply "
+        "at d=0.15 and expensively after ~0.20. It does *not* break up franchise "
+        "runs: sequels are similar to the query and to each other in the same "
+        "content space MMR penalises, so any d strong enough to reject them also "
+        "rejects the on-topic recommendations. See CLAUDE.md 6.6.2.",
     ]
     RESULTS.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

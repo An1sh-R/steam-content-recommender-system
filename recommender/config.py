@@ -37,3 +37,24 @@ RECENCY_HALF_LIFE_YEARS = 3.0
 # space costs 46%. Having three spaces matters far more than their exact ratio.
 FIELD_WEIGHTS = {"tags": 0.35, "genres": 0.20, "description": 0.45}
 N_CANDIDATES = 300
+
+# --- Reranking and diversification (see rerank.py / mmr.py) --------------
+# score = similarity * (floor + (1 - floor) * popularity).
+#
+# Swept in M5, not chosen by hand -- I guessed 0.5 and it was too aggressive.
+# 0.70 is the knee: it cuts the share of the page holding sub-70%-rated games
+# from 28.7% to 13.3% while NDCG@10 stays flat (+0.0011, 95% CI [-0.0012,
+# +0.0034] -- indistinguishable from zero). Below 0.70 the ranking starts to pay.
+QUALITY_FLOOR = 0.70
+
+# Also swept. 0.15 buys +0.016 diversity@10 for -0.0014 NDCG@10, which is inside
+# the noise band above. Past ~0.20 the exchange rate collapses: d=0.40 costs
+# 18x more NDCG per point of diversity. Users can override per request.
+DEFAULT_DIVERSITY = 0.15
+
+# --- Explanations (see explain.py) ---------------------------------------
+# A field is named when it carried at least this share of the combined score.
+EXPLAIN_MIN_SHARE = 0.25
+# "Highly rated by the community" -- deliberately strict enough to stay a signal.
+ACCLAIM_MIN_REVIEWS = 500
+ACCLAIM_MIN_RATIO = 0.90

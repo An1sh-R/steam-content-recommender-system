@@ -283,17 +283,75 @@ to recommend a game.
 ### 6.6 Reranking is multiplicative
 
 ```
-score = similarity × (0.5 + 0.5 · popularity)
+score = similarity × (0.70 + 0.30 · popularity)
 ```
 
 Additive blending (V1 used `0.6·sim + 0.2·pop + …`) lets a popular-but-
 irrelevant game outrank a relevant one — one term compensates for another.
 Multiplicative treats quality as a *modifier on relevance*: it reorders within
-similar-relevance bands but cannot promote an irrelevant game. The `0.5 +`
-floor bounds the penalty.
+similar-relevance bands but cannot promote an irrelevant game. The floor bounds
+the penalty.
 
-Keep the simplest version that works. The harness decides whether anything more
-is warranted.
+**What it is for, measured (M5).** Without it, **28.7% of every recommendation
+page is games rated below 70% positive**. NDCG cannot see this — tag overlap is
+blind to whether a game is any good — so `poorly_rated_rate` was added to the
+harness specifically to give this stage a metric that could refute it.
+
+| floor | NDCG@10 | poor@10 | novelty |
+|--:|--:|--:|--:|
+| 1.00 (off) | 0.2588 | 28.7% | 0.497 |
+| 0.85 | 0.2608 | 21.0% | 0.426 |
+| **0.70** | **0.2609** | **13.3%** | **0.348** |
+| 0.50 | 0.2580 | 6.2% | 0.256 |
+| 0.00 | 0.2407 | — | 0.116 |
+
+**0.70 is the knee**: the strongest prior that still costs nothing. On a fresh
+800-query sample with a different seed the NDCG delta against no reranking is
+**+0.0011, 95% CI [−0.0012, +0.0034]** — indistinguishable from zero. So the
+honest claim is *neutral*, not *better*: it halves the bad-game rate for free.
+Below 0.70 the ranking starts to pay.
+
+**My hand-picked 0.5 was too aggressive** — same mistake as the M4 field
+weights. It cut novelty to 0.256 (mean popularity percentile 0.74) for no gain
+the harness could see. The trade-off that remains at 0.70 is real and stated:
+novelty 0.497 → 0.348. Quality-weighting *is* a popularity bias; the floor is
+how much of one we chose to accept.
+
+### 6.6.2 MMR is shipped at d=0.15, and does not do what it is famous for
+
+```
+value(i) = (1 − d)·score(i) − d·max_{j ∈ chosen} similarity(i, j)
+```
+
+Redundancy is measured with the *same* weighted cosine as retrieval, so there
+is one definition of "similar" in the pipeline. `d = 0` reduces exactly to
+top-k, so there is no second code path.
+
+| d | NDCG@10 | Δ | diversity@10 | Δ |
+|--:|--:|--:|--:|--:|
+| 0.00 | 0.2563 | — | 0.8136 | — |
+| **0.15** | **0.2549** | **−0.0014** | **0.8292** | **+0.0155** |
+| 0.20 | 0.2520 | −0.0043 | 0.8347 | +0.0211 |
+| 0.30 | 0.2456 | −0.0107 | 0.8460 | +0.0324 |
+| 0.40 | 0.2316 | −0.0247 | 0.8604 | +0.0468 |
+
+At d=0.15 the cost is inside the noise band measured above and the exchange
+rate is 11 points of diversity per point of NDCG; by d=0.40 it is 1.9. Cost is
+**+6 ms** (23.9 → 29.7 ms p50), so the candidate pool stays at all 300 rather
+than gaining a tuning knob.
+
+**Where it fails, stated plainly.** MMR does *not* break up franchise runs.
+"Games like Assassin's Creed Odyssey" returns 6 Assassin's Creed games at
+d=0.15 — and still 6 at d=0.25. It takes d≈0.35 to drop to 3, by which point
+the freed slots go to *YAR: Forgotten Throne* and *MOOD* rather than to better
+recommendations. The reason is structural: sequels are similar to the query and
+to each other **in the space MMR penalises**, so no single λ separates
+"redundant" from "on-topic". A per-developer cap would target it directly; that
+is a different mechanism and is listed under future work, not smuggled in here.
+
+So MMR ships for what it measurably does — a small, cheap, real gain in
+list diversity, plus a user-facing slider — and the README does not claim it
+solves near-duplicates.
 
 ### 6.6.1 Cosine is written `matrix @ query.T`, not `query @ matrix.T`
 
@@ -311,10 +369,32 @@ AppID and keep the regression test.
 
 ### 6.8 Explanations are short
 
-One line each. `"Shares 9 tags"`, `"Similar genres"`, `"Similar gameplay
-description"`, `"Highly rated by the community"`. Shared tags are selected by
-*rarity* (highest IDF), because the rarest shared tag is the most informative.
-`explain.py` returns structured data; formatting stays in the UI.
+One line each. `"Shares 12 tags including Souls-like and Dark Fantasy"`,
+`"Similar genres"`, `"Similar gameplay description"`, `"Highly rated by the
+community"`, `"Also by Supergiant Games"`.
+
+**A field is named only when it drove the score.** `explain.py` converts the
+per-space cosines into weighted contributions and mentions a space only if it
+carried ≥ 25% of the combined score, largest first. This matters: descriptions
+carry the most weight, so a description-driven match must not be explained as a
+tag match. The reasons therefore *follow the ranking* instead of describing the
+game in general — nothing is asserted that the model did not compute.
+
+A share, not an absolute threshold, because cosines are not comparable across
+vocabularies of 449, 86 and 30,000 terms — but their contributions to one score
+are. It also means there is no magic number to calibrate per space.
+
+**Shared tags are ordered by rarity**, from `catalogue.value_counts` — the same
+reasoning as the IDF that weighted them during retrieval. "Both are Indie"
+explains nothing; "both are Deck Building Roguelikes" explains the
+recommendation.
+
+`"Highly rated"` is backed by the **raw review ratio** (≥ 90% over ≥ 500
+reviews), deliberately not by `popularity`, which also folds in reach and
+recency and would make the sentence untrue.
+
+Developers are excluded from *similarity* (§6.5) but are a fair *explanation*
+once a game has earned its place on content — that asymmetry is the point.
 
 ### 6.8.1 Evaluation: the held-out tag protocol
 
@@ -334,8 +414,9 @@ Metrics must be *actionable* — each one has to change what we do next:
 | NDCG@10 | Is the ranking better? (headline) |
 | Recall@50 | Is retrieval or ranking the limit? |
 | unique@10 | Do we recycle the same few games? |
-| diversity@10 | Are results near-duplicates? (what MMR must fix) |
+| diversity@10 | Are results near-duplicates? (what MMR buys) |
 | novelty | Are we just showing blockbusters? |
+| poor@10 | Are we recommending badly-reviewed games? (what rerank buys) |
 | tie rate | Do scores actually discriminate? |
 | same publisher | Have we regressed to V1? |
 | self-retrieval | Does a game recommend itself? (must be 0) |
@@ -469,8 +550,8 @@ docker compose up                       # both services
 | **M2** | Wilson popularity + first vertical slice (Popular page live) | ✅ done |
 | **M3** | Documents, TF-IDF, retrieval, `/recommend` | ✅ done |
 | **M4** | Evaluation harness + baselines *(before any tuning)* | ✅ done |
-| **M5** | Rerank, MMR, explanations — tuned against M4 | next |
-| **M6** | Streamlit UI, three modes | |
+| **M5** | Rerank, MMR, explanations — tuned against M4 | ✅ done |
+| **M6** | Streamlit UI, three modes | next |
 | **M7** | Docker, README, `eda.ipynb` | |
 
 ### Future improvements (explicitly out of scope for now)
@@ -480,3 +561,5 @@ docker compose up                       # both services
 - Learned blend weights (logistic regression over the field similarities)
 - Query-by-multiple-games (average several seed vectors)
 - Tag co-occurrence analysis for a "related tags" browse affordance
+- A per-developer cap in the top-10, which targets franchise runs directly —
+  the thing MMR measurably does *not* fix (§6.6.2)

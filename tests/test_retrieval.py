@@ -76,10 +76,35 @@ def test_engine_attaches_similarity_and_breakdown(engine, games):
     assert set(result["parts"]) == {"tags", "genres", "description"}
 
 
-def test_engine_results_stay_in_rank_order(engine, games):
-    results = engine.similar(int(games["appid"].iloc[0]), k=8)
-    scores = [result["similarity"] for result in results]
+def test_engine_results_stay_in_rank_order_without_diversification(engine, games):
+    results = engine.similar(int(games["appid"].iloc[0]), k=8, diversity=0.0)
+    scores = [result["score"] for result in results]
     assert scores == sorted(scores, reverse=True)
+
+
+def test_diversity_changes_the_list_it_does_not_shorten_it(engine, games):
+    appid = int(games["appid"].iloc[0])
+    focused = engine.similar(appid, k=10, diversity=0.0)
+    diversified = engine.similar(appid, k=10, diversity=0.5)
+
+    assert len(focused) == len(diversified) == 10
+    assert [g["appid"] for g in focused] != [g["appid"] for g in diversified]
+    assert focused[0]["appid"] == diversified[0]["appid"]  # the best match is kept
+
+
+def test_engine_explains_every_recommendation(engine, games):
+    for result in engine.similar(int(games["appid"].iloc[0]), k=10):
+        assert result["reasons"]
+        assert all(isinstance(reason, str) for reason in result["reasons"])
+
+
+def test_pairwise_similarity_is_symmetric_with_a_unit_diagonal(matrices):
+    rows = np.arange(12)
+    block = retrieval.pairwise(matrices, rows)
+
+    assert block.shape == (12, 12)
+    assert np.allclose(block, block.T)
+    assert np.allclose(np.diag(block), 1.0)
 
 
 def test_engine_knows_which_games_it_has(engine, games):

@@ -31,12 +31,15 @@ class GameSummary(BaseModel):
 
 
 class Recommendation(GameSummary):
-    """A recommended game, with the similarity that put it there.
+    """A recommended game, with why it is here.
 
-    ``parts`` is the per-space cosine (tags / genres / description). It is what
-    the UI charts and what the M5 explanations are written from.
+    ``reasons`` is what the UI shows. ``similarity`` and ``parts`` (the
+    per-space cosines) are the numbers behind those reasons -- kept because the
+    score breakdown is the point of having three spaces, and because a
+    recommendation you cannot audit is not explainable.
     """
 
+    reasons: list[str]
     similarity: float
     parts: dict[str, float]
 
