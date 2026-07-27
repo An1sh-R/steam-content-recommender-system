@@ -72,7 +72,15 @@ def approval(game: dict) -> str:
     total = game["total_reviews"]
     if not total:
         return "No reviews"
-    return f"{round(100 * game['positive'] / total)}% of {total:,} reviews"
+    return f"{round(100 * game['positive'] / total)}% of {_compact(total)} reviews"
+
+
+def _compact(count: int) -> str:
+    """1150098 -> '1.2M'. Spelled out, a card's caption wraps onto two lines."""
+    for limit, suffix in ((1_000_000, "M"), (1_000, "K")):
+        if count >= limit:
+            return f"{count / limit:.1f}{suffix}".replace(".0", "")
+    return str(count)
 
 
 def price(value: float) -> str:

@@ -1,0 +1,7 @@
+# The default toolbar shows "Deploy" and a developer menu, which are noise for
+# a local app. "minimal" keeps the rerun/stop controls and drops the rest.
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

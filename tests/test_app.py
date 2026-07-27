@@ -130,6 +130,17 @@ def test_approval_handles_a_game_with_no_reviews():
     assert components.approval({"total_reviews": 0, "positive": 0}) == "No reviews"
 
 
+def test_review_counts_are_compact_enough_to_fit_a_card():
+    assert components.approval({"total_reviews": 842, "positive": 800}) == "95% of 842 reviews"
+    assert components.approval({"total_reviews": 204_041, "positive": 200_000}) == (
+        "98% of 204K reviews"
+    )
+    assert components.approval({"total_reviews": 1_150_098, "positive": 1_115_595}) == (
+        "97% of 1.2M reviews"
+    )
+    assert components.approval({"total_reviews": 2_000_000, "positive": 1}) == "0% of 2M reviews"
+
+
 def test_free_games_are_labelled_not_priced():
     assert components.price(0) == "Free"
     assert components.price(9.99) == "$9.99"

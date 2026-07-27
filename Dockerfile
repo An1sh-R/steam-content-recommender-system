@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY recommender/ recommender/
 COPY api/ api/
 COPY app/ app/
+COPY .streamlit/ .streamlit/
 COPY data/sample/ data/sample/
 
 # Bake the sample catalogue in, so `docker compose up` works from a fresh

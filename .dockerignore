@@ -13,7 +13,8 @@ data/processed/
 data/artifacts/
 
 tests/
-notebooks/
 evaluation/
 scripts/
+docs/
 *.md
+*.ipynb
