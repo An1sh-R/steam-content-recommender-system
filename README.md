@@ -1,112 +1,168 @@
-# Game Recommender System
+# 🎮 Game Recommender
 
-A content-based Steam game recommender over ~56,000 games. Given a game you
-like, it finds similar games, reranks them by community quality, and explains
-every recommendation.
+**Tell it a game you love. It finds you more — and explains why.**
 
-**Stack:** Python · scikit-learn · FastAPI · Streamlit · SQLite · Docker
+[![Python](https://img.shields.io/badge/python-3.11+-blue)](https://www.python.org/)
 
-> **Status: under active development (v2).** The application is being rebuilt
-> from scratch. See [`CLAUDE.md`](CLAUDE.md) for the full design, architecture,
-> and roadmap. This README is rewritten with evaluation results at M7.
+![Recommendations for Stardew Valley](docs/screenshots/explanations.png)
 
 ---
 
-## Quickstart
+## What is this?
 
-```bash
-docker compose up          # → UI on :8501, API docs on :8000/docs
+Steam has more than 125,000 games, and finding your next one usually means
+scrolling past the same handful of bestsellers. If you just finished something
+you loved, the question you actually want answered is simple: *what else is
+like this?*
+
+This app answers it. Pick a game you enjoyed and it finds others that genuinely
+resemble it, based on their tags, genres and descriptions rather than on what
+happens to be selling this week. Every recommendation comes with a short reason,
+so you can tell at a glance why it showed up:
+
+> **My Time at Portia** — Shares 13 tags including Agriculture and Farming Sim ·
+> Similar genres · Highly rated by the community
+
+There's also a browse mode for wandering through the catalogue by genre, price
+or rating. Everything runs on your own machine — one command with Docker, no
+account, no API keys, no sign-up.
+
+---
+
+## Features
+
+| | |
+|---|---|
+| 🎯 **Find similar games** | Pick any game, get 5, 10 or 20 recommendations |
+| 💬 **Clear reasons** | Every result explains itself in a line or two |
+| 🔍 **Browse and search** | Filter by genre, sort by rating, price or release date |
+| ⭐ **Quality first** | Well-reviewed games are favoured, so results aren't padded with shovelware |
+| 🖼️ **Proper game cards** | Cover art, ratings, price and tags at a glance |
+| 🐳 **One command to run** | `docker compose up` and you're going |
+
+---
+
+## Screenshots
+
+**Browse** — search, filter and sort your way through the catalogue. Open it
+with no filters and you get the best-reviewed games as a starting point.
+
+![Browse](docs/screenshots/browse.png)
+
+**Find similar games** — start typing a title, pick it, and see what's like it.
+
+![Recommend](docs/screenshots/recommend.png)
+
+---
+
+## How it works
+
+```mermaid
+graph TD
+    UI["🖥️ Streamlit<br/><i>the web interface</i>"]
+    API["⚡ FastAPI<br/><i>the web API</i>"]
+    ENG["🧠 Recommendation engine<br/><i>the Python library</i>"]
+    DB[("🗄️ SQLite<br/>game details")]
+    NPZ[("🔢 TF-IDF matrices<br/>game similarity")]
+
+    UI -->|HTTP| API
+    API --> ENG
+    ENG --> DB
+    ENG --> NPZ
+
+    style UI fill:#ff4b4b,color:#fff
+    style API fill:#009688,color:#fff
+    style ENG fill:#4b6bff,color:#fff
 ```
 
-The image bakes in a 600-game sample catalogue, so a fresh clone runs with no
-build step and no dataset download.
+When you pick a game, it goes through four steps:
 
-Or locally:
+```mermaid
+flowchart LR
+    Q["🎮 Your<br/>game"]
+    R["<b>Find</b><br/>similar games"]
+    K["<b>Favour</b><br/>well-reviewed ones"]
+    H["<b>Fetch</b><br/>the details"]
+    E["<b>Explain</b><br/>each pick"]
+    OUT["✨ Results"]
+
+    Q --> R --> K --> H --> E --> OUT
+
+    style Q fill:#4b6bff,color:#fff
+    style OUT fill:#00a67e,color:#fff
+```
+
+Similarity comes from three things a game tells you about itself — its tags, its
+genres, and its store description — compared separately and then blended. Keeping
+them apart is what lets each recommendation say *which* of them matched.
+
+---
+
+## Tech stack
+
+| | |
+|---|---|
+| **Language** | Python 3.11+ |
+| **Machine learning** | scikit-learn, scipy, numpy, pandas |
+| **API** | FastAPI |
+| **Interface** | Streamlit |
+| **Database** | SQLite |
+| **Packaging** | Docker |
+
+---
+
+## Quick start
+
+```bash
+docker compose up          # UI at localhost:8501, API at localhost:8000/docs
+```
+
+A 600-game sample is built into the image, so this works straight from a fresh
+clone — nothing to download, nothing to configure.
+
+<details>
+<summary><b>Prefer to run it without Docker?</b></summary>
 
 ```bash
 pip install -r requirements-dev.txt
-python -m recommender.build --sample
-uvicorn api.main:app --reload      # :8000
-streamlit run app/main.py          # :8501
-pytest
+python -m recommender.build --sample    # takes a few seconds
+uvicorn api.main:app --reload           # localhost:8000
+streamlit run app/main.py               # localhost:8501
 ```
 
-For the full catalogue, download the
+To use the full catalogue of 55,973 games, download the
 [Steam Games Dataset](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset)
-to `data/raw/games.csv` (401 MB, not in git).
+to `data/raw/games.csv`, then run `python -m recommender.build`. It takes about a
+minute.
+
+</details>
 
 ---
 
-## Results
+## Repository structure
 
-Measured on 55,973 games with 500 stratified queries. Ground truth is a
-**held-out tag protocol** — each game's tags are split in half, the model is
-fitted on one half, relevance is judged on the other, so the judging signal is
-never in the feature space.
-
-| model | NDCG@10 | tie rate | same publisher |
-|---|--:|--:|--:|
-| **weighted, three TF-IDF spaces** | **0.259** | 0.002 | 8.8% |
-| tags only | 0.221 | 0.104 | 2.4% |
-| description only | 0.180 | 0.009 | 9.2% |
-| single concatenated space | 0.169 | 0.000 | 7.5% |
-| popularity baseline | 0.077 | 0.000 | 0.0% |
-| random | 0.075 | 0.980 | 0.0% |
-
-Three weighted spaces beat one concatenated document by **53%** and the
-popularity baseline by **3.4×**. Full table, including diversity, novelty and
-coverage: [`evaluation/results.md`](evaluation/results.md).
-
-Tag overlap is a proxy for relevance, not human judgement — it ranks systems
-reliably, it does not prove any individual recommendation is good.
-
-### What the quality prior buys
-
-| stage | NDCG@10 | poor@10 |
-|---|--:|--:|
-| retrieval only | 0.259 | 28.7% |
-| + quality rerank | 0.261 | **13.3%** |
-
-`poor@10` is the share of a page rated below 70% positive. **Untouched
-retrieval puts a badly-reviewed game in nearly 3 of every 10 slots**; the
-quality prior halves that at no measurable cost in ranking quality (+0.0011
-NDCG, 95% CI [−0.0012, +0.0034] — indistinguishable from zero). The strength
-was swept, not guessed; my hand-picked value was too aggressive.
-
-### What was removed after measuring it
-
-**MMR is not in this project.** It was implemented, evaluated, and deleted in
-the same milestone. It bought +0.019 diversity@10 for a statistically free
-NDCG cost — but returned *output identical to no diversification* on half the
-queries tried, and left untouched the franchise clustering that motivated it:
-"games like Assassin's Creed Odyssey" still returned 6 Assassin's Creed games.
-Turning it up far enough to break them replaced them with noise, because
-sequels are similar to the query *and to each other* in the very space MMR
-penalises.
-
-Franchise clustering is therefore a **known limitation**. A publisher cap
-solves it and is measured in §6.6.2 of [`CLAUDE.md`](CLAUDE.md); it is left as
-future work rather than shipped, because the pipeline is better off simple.
-
-## A note on the dataset
-
-The published CSV has a malformed header: it declares **39 columns** while every
-data row has **40 fields** (`DiscountDLC count` is two columns with a missing
-comma). Reading it naively mislabels 32 of 40 fields — descriptions become DLC
-counts, tags become genres, categories become publishers.
-
-`recommender/schema.py` documents and fixes this; `tests/test_load.py` guards it.
-See §6.1 of [`CLAUDE.md`](CLAUDE.md).
+```
+recommender/     the recommendation engine — a plain Python library
+api/             FastAPI endpoints
+app/             the Streamlit interface
+evaluation/      scripts for measuring recommendation quality
+tests/           the test suite
+data/sample/     600-game sample, so the project runs out of the box
+docs/            engineering notes and screenshots
+eda.ipynb        a look at the dataset and what shaped the design
+```
 
 ---
 
-## Progress
+## Future work
 
-- [x] **M0** — Foundation, column contract, sample dataset, tests
-- [x] **M1** — Cleaning + SQLite catalogue (55,973 of 125,855 games kept)
-- [x] **M2** — Wilson popularity + first vertical slice (API + UI + Docker)
-- [x] **M3** — TF-IDF retrieval, `/recommend/{appid}` (~25 ms per query)
-- [x] **M4** — Evaluation harness, baselines, weight sweep
-- [x] **M5** — Quality reranking, explanations (~24 ms per query)
-- [x] **M6** — Streamlit UI: browse + recommend, two modes
-- [ ] **M7** — Docker, docs, EDA notebook
+- **Better handling of long series** — ask for games like Assassin's Creed and
+  you currently get rather a lot of Assassin's Creed
+- **Build a taste profile from several games** instead of just one
+- **Smarter description matching** for games with unusual or very short blurbs
+- **Support for non-English descriptions**, which are handled poorly today
+- **Keep the catalogue fresh** so new releases appear without a manual rebuild
+
+---
+
+*A portfolio project, built to be readable and easy to reason about.*
