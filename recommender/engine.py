@@ -1,8 +1,8 @@
 """Composes the pipeline and owns the loaded artifacts.
 
 This is the library's public entry point. The API calls it; nothing here knows
-about HTTP. The five stages -- retrieve, rerank, diversify, hydrate, explain --
-are five lines in ``similar``; each one lives in its own module.
+about HTTP. The four stages -- retrieve, rerank, hydrate, explain -- are four
+lines in ``similar``; each one lives in its own module.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import sqlite3
 import numpy as np
 from scipy import sparse
 
-from recommender import catalogue, config, explain, mmr, rerank, retrieval, vectorize
+from recommender import catalogue, config, explain, rerank, retrieval, vectorize
 
 
 class Engine:
@@ -40,13 +40,11 @@ class Engine:
     def knows(self, appid: int) -> bool:
         return appid in self._row_of
 
-    def similar(
-        self, appid: int, k: int = 12, diversity: float = config.DEFAULT_DIVERSITY
-    ) -> list[dict]:
+    def similar(self, appid: int, k: int = 12) -> list[dict]:
         """Games similar to ``appid``, best first."""
         rows, similarity, per_space = retrieval.similar_rows(self.matrices, self._row_of[appid])
         scores = rerank.apply(similarity, self.popularity[rows])
-        picked = mmr.select(scores, retrieval.pairwise(self.matrices, rows), k, diversity)
+        picked = np.argsort(-scores)[:k]
 
         ranked = [int(self.appids[rows[i]]) for i in picked]
         # Keyed by AppID, not position: get_games drops anything it cannot find.

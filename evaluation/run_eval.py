@@ -28,16 +28,11 @@ WEIGHT_SWEEP = {
     "no description": {"tags": 0.80, "genres": 0.20},
 }
 
-# The M5 stages, ablated against `weighted tuned` (which is this pipeline with
-# both stages off). Each has to earn its place: rerank must not cost NDCG,
-# MMR must buy diversity cheaply enough to be worth the loss.
+# The quality prior, ablated against `weighted tuned` (the same pipeline with it
+# off). MMR was measured here too and removed in M5; see CLAUDE.md 6.6.2.
 STAGE_BASELINE = "weighted tuned"
 STAGE_SWEEP = {
-    "rerank": ("quality prior only", {"quality": True, "diversity": 0.0}),
-    "rerank + mmr 0.15": ("shipped", {"quality": True, "diversity": config.DEFAULT_DIVERSITY}),
-    "rerank + mmr 0.30": ("d=0.30", {"quality": True, "diversity": 0.30}),
-    "rerank + mmr 0.50": ("d=0.50", {"quality": True, "diversity": 0.50}),
-    "mmr 0.15 alone": ("no quality prior", {"quality": False, "diversity": 0.15}),
+    "rerank (shipped)": ("quality prior", {"quality": True}),
 }
 
 
@@ -117,11 +112,11 @@ def main() -> None:
 
 
 def _stage_section(table: pd.DataFrame) -> list[str]:
-    """Rerank and MMR against the same retrieval, as deltas.
+    """The quality prior against the same retrieval, as deltas.
 
-    Absolute numbers cannot settle these two: the tag-overlap proxy is blind to
-    whether a game is worth playing, and diversity is a cost in NDCG by
-    construction. What it can do is *bound the price*, which is the decision.
+    Absolute numbers cannot settle this one: the tag-overlap proxy is blind to
+    whether a game is worth playing. What it can do is *bound the price*, which
+    is the decision.
     """
     rows = table.set_index("model")
     wanted = [STAGE_BASELINE, *(name for name in STAGE_SWEEP if name in rows.index)]
@@ -131,10 +126,10 @@ def _stage_section(table: pd.DataFrame) -> list[str]:
     base = rows.loc[STAGE_BASELINE]
     lines = [
         "",
-        "## M5 stages: what rerank and MMR cost, and what they buy",
+        "## M5: what the quality prior costs, and what it buys",
         "",
-        f"Same retrieval for every row; `{STAGE_BASELINE}` is both stages off.",
-        "NDCG is the price. `poor@10` and `diversity@10` are the goods.",
+        f"Same retrieval for both rows; `{STAGE_BASELINE}` is the prior off.",
+        "NDCG is the price. `poor@10` is the good.",
         "",
         "| stage | notes | NDCG@10 | Δ | poor@10 | Δ | diversity@10 | Δ | novelty |",
         "|---|---|--:|--:|--:|--:|--:|--:|--:|",
@@ -216,11 +211,11 @@ def _write(table: pd.DataFrame, games, queries, sample: bool) -> None:
         "- **`poor@10`** is the share of the page rated below 70% positive. NDCG "
         "cannot see it -- tag overlap is blind to whether a game is any good -- "
         "so it is the only metric that can justify the quality prior.",
-        "- **MMR's limit is visible in the numbers.** It buys diversity cheaply "
-        "at d=0.15 and expensively after ~0.20. It does *not* break up franchise "
-        "runs: sequels are similar to the query and to each other in the same "
-        "content space MMR penalises, so any d strong enough to reject them also "
-        "rejects the on-topic recommendations. See CLAUDE.md 6.6.2.",
+        "- **`diversity@10` no longer has a stage to justify.** MMR was built and "
+        "measured against these metrics in M5, then deleted: it bought +0.019 "
+        "diversity@10 but left franchise clustering untouched, and returned "
+        "output identical to no diversification on half the queries tried. "
+        "The metric stays as a regression guard. See CLAUDE.md 6.6.2.",
     ]
     RESULTS.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

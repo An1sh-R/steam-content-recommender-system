@@ -6,7 +6,7 @@ we do next:
     ndcg@10        Is the ranking better?              -- the headline
     recall@50      Is retrieval or ranking the limit?  -- sets N_CANDIDATES
     unique@10      Do we recycle the same few games?   -- detects a stuck model
-    diversity@10   Are results near-duplicates?        -- what MMR must fix
+    diversity@10   Are results near-duplicates?        -- regression guard
     novelty        Are we just showing blockbusters?   -- popularity bias
     poorly_rated   Are we recommending bad games?      -- what rerank is for
     tie_rate       Do scores actually discriminate?    -- V1 died of this

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.deps import get_connection, get_engine
 from api.schemas import GameOption, GameSummary, Recommendation
-from recommender import catalogue, config
+from recommender import catalogue
 
 router = APIRouter()
 
@@ -49,17 +49,12 @@ def popular(
 def recommend(
     appid: int,
     k: int = Query(12, ge=1, le=50),
-    diversity: float = Query(config.DEFAULT_DIVERSITY, ge=0.0, le=1.0),
     engine=Depends(get_engine),
 ) -> list[Recommendation]:
-    """Games similar to ``appid``. The primary workflow.
-
-    ``diversity`` is the MMR trade-off: 0 is pure similarity, 1 ignores it.
-    """
+    """Games similar to ``appid``. The primary workflow."""
     if not engine.knows(appid):
         raise HTTPException(status_code=404, detail=f"No game with AppID {appid}")
-    rows = engine.similar(appid, k=k, diversity=diversity)
-    return [Recommendation.from_row(row) for row in rows]
+    return [Recommendation.from_row(row) for row in engine.similar(appid, k=k)]
 
 
 def _label(row: dict) -> str:

@@ -33,23 +33,6 @@ def similar_rows(
     return top, combined[top], {name: scores[top] for name, scores in per_space.items()}
 
 
-def pairwise(
-    matrices: dict[str, sparse.csr_matrix],
-    rows: np.ndarray,
-    weights: dict[str, float] | None = None,
-) -> np.ndarray:
-    """Candidate-by-candidate similarity, using the same weighted cosine.
-
-    MMR needs to know how much two *candidates* repeat each other. Reusing the
-    retrieval metric keeps one definition of "similar" in the whole pipeline.
-    """
-    weights = weights or config.FIELD_WEIGHTS
-    return sum(
-        weight * np.asarray((matrices[name][rows] @ matrices[name][rows].T).todense())
-        for name, weight in weights.items()
-    )
-
-
 def _cosine_against_all(matrix: sparse.csr_matrix, row: int) -> np.ndarray:
     """Rows are L2-normalised, so the dot product is already the cosine.
 

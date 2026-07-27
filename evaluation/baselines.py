@@ -14,7 +14,7 @@ import pandas as pd
 from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from recommender import config, documents, mmr, rerank, retrieval, vectorize
+from recommender import config, documents, rerank, retrieval, vectorize
 
 
 @dataclass
@@ -74,19 +74,18 @@ def _tfidf_ranker(matrices, weights=None):
     return rank
 
 
-def _pipeline_ranker(matrices, popularity: np.ndarray, quality: bool, diversity: float):
-    """The shipped pipeline, with each M5 stage switchable so it can be ablated.
+def _pipeline_ranker(matrices, popularity: np.ndarray, quality: bool):
+    """The shipped pipeline, with the quality prior switchable so it can be ablated.
 
-    Retrieval always widens to N_CANDIDATES first; the stages under test only
-    change how that pool is ordered and cut, which is exactly what production
-    does.
+    Retrieval always widens to N_CANDIDATES first; the stage under test only
+    reorders that pool, which is exactly what production does.
     """
 
     def rank(row: int, n: int):
         rows, scores, _ = retrieval.similar_rows(matrices, row, n=config.N_CANDIDATES)
         if quality:
             scores = rerank.apply(scores, popularity[rows])
-        picked = mmr.select(scores, retrieval.pairwise(matrices, rows), n, diversity)
+        picked = np.argsort(-scores)[:n]
         return rows[picked], scores[picked]
 
     return rank

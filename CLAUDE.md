@@ -8,7 +8,7 @@ Single source of truth for this project. Read this before changing anything.
 
 A **content-based game recommender** over a Steam catalogue of ~56,000 games.
 Given a game you like, it finds similar games, reranks them by community
-quality, diversifies the list, and explains every recommendation.
+quality, and explains every recommendation.
 
 It is a **portfolio and interview project**. It optimises for clarity,
 explainability, and demonstrable engineering judgement — not for scale.
@@ -77,8 +77,7 @@ Do not break it.
 | `documents.py` | Builds per-field-group documents for vectorization. |
 | `vectorize.py` | Fits/loads TF-IDF spaces; persists artifacts. |
 | `retrieval.py` | Cosine similarity → candidates + per-field score breakdown. |
-| `rerank.py` | Blends similarity with the quality prior. |
-| `mmr.py` | MMR diversification. |
+| `rerank.py` | Scales similarity by the quality prior. |
 | `explain.py` | Score breakdown → short human reasons. |
 | `catalogue.py` | SQLite: build the DB, serve faceted browse queries. |
 | `engine.py` | Composes the pipeline. The public entry point. |
@@ -94,7 +93,7 @@ yourself writing a loop in `routes.py`, it belongs in `recommender/`.
 | `GET /health` | Liveness + artifact version |
 | `GET /games?q=&limit=` | Typeahead for the selectbox |
 | `GET /games/{appid}` | Game detail |
-| `GET /recommend/{appid}?k=&diversity=` | Primary workflow |
+| `GET /recommend/{appid}?k=` | Primary workflow |
 | `GET /popular?k=` | Landing page |
 | `GET /browse?genres=&tags=&platform=&price_max=` | Faceted browse |
 
@@ -131,8 +130,7 @@ consumer. Batch jobs that need it (the evaluation harness) call
 ```
 Streamlit → FastAPI → Engine
                         ├─ retrieval : weighted cosine → top 300 + breakdown
-                        ├─ rerank    : × quality prior
-                        ├─ mmr       : greedy diversification → k
+                        ├─ rerank    : × quality prior → top k
                         ├─ catalogue : hydrate metadata from SQLite
                         └─ explain   : short reasons
 ```
@@ -317,41 +315,57 @@ the harness could see. The trade-off that remains at 0.70 is real and stated:
 novelty 0.497 → 0.348. Quality-weighting *is* a popularity bias; the floor is
 how much of one we chose to accept.
 
-### 6.6.2 MMR is shipped at d=0.15, and does not do what it is famous for
+### 6.6.2 MMR was built, measured, and removed
+
+**There is no diversification stage.** MMR was implemented in M5, evaluated
+against the harness, and deleted in the same milestone. It is recorded here
+because the measurement is the useful artifact, and because "we tried the
+textbook component and it did not earn its place" is a decision, not an
+omission.
 
 ```
 value(i) = (1 − d)·score(i) − d·max_{j ∈ chosen} similarity(i, j)
 ```
 
-Redundancy is measured with the *same* weighted cosine as retrieval, so there
-is one definition of "similar" in the pipeline. `d = 0` reduces exactly to
-top-k, so there is no second code path.
-
 | d | NDCG@10 | Δ | diversity@10 | Δ |
 |--:|--:|--:|--:|--:|
 | 0.00 | 0.2563 | — | 0.8136 | — |
-| **0.15** | **0.2549** | **−0.0014** | **0.8292** | **+0.0155** |
-| 0.20 | 0.2520 | −0.0043 | 0.8347 | +0.0211 |
+| 0.15 | 0.2549 | −0.0014 | 0.8292 | +0.0155 |
 | 0.30 | 0.2456 | −0.0107 | 0.8460 | +0.0324 |
 | 0.40 | 0.2316 | −0.0247 | 0.8604 | +0.0468 |
 
-At d=0.15 the cost is inside the noise band measured above and the exchange
-rate is 11 points of diversity per point of NDCG; by d=0.40 it is 1.9. Cost is
-**+6 ms** (23.9 → 29.7 ms p50), so the candidate pool stays at all 300 rather
-than gaining a tuning knob.
+The numbers look acceptable at d=0.15 — cheap, statistically free. **The
+qualitative check is what killed it.** Against no diversification at all:
 
-**Where it fails, stated plainly.** MMR does *not* break up franchise runs.
-"Games like Assassin's Creed Odyssey" returns 6 Assassin's Creed games at
-d=0.15 — and still 6 at d=0.25. It takes d≈0.35 to drop to 3, by which point
-the freed slots go to *YAR: Forgotten Throne* and *MOOD* rather than to better
-recommendations. The reason is structural: sequels are similar to the query and
-to each other **in the space MMR penalises**, so no single λ separates
-"redundant" from "on-topic". A per-developer cap would target it directly; that
-is a different mechanism and is listed under future work, not smuggled in here.
+| query | effect of MMR at d=0.15 |
+|---|---|
+| Hades II | **identical output** |
+| Stardew Valley | reorders, swaps 1 of 8 |
+| Call of Duty | swaps 1 of 8 |
+| Assassin's Creed Odyssey | swaps 2 positions — **still 6 AC games** |
 
-So MMR ships for what it measurably does — a small, cheap, real gain in
-list diversity, plus a user-facing slider — and the README does not claim it
-solves near-duplicates.
+So it bought an aggregate diversity number that no user would perceive, and it
+did not touch the franchise clustering that motivated adding it. Turning it up
+far enough to break the clusters (d≈0.35) replaced them with *YAR: Forgotten
+Throne* and *MOOD* — noise, because MMR's penalty distorts the score itself.
+
+The failure is structural, not a tuning problem: sequels are similar to the
+query **and to each other in the very space MMR penalises**, so no single λ
+separates "redundant" from "on-topic". A global knob cannot express a
+query-specific problem.
+
+Cost of keeping it would have been ~50 lines, a 300×300 pairwise matrix per
+request (+6 ms), a `retrieval.pairwise` helper, an API parameter and a UI
+slider — all for a benefit that is real in aggregate and invisible in practice.
+That is exactly the trade §2 says to refuse.
+
+**What replaces it: nothing.** Franchise clustering is a known limitation, in
+the README as such. A publisher cap ("at most 2 games per publisher") was
+prototyped and does solve it — measured p90 crowding 4 → 2 and same-publisher
+rate 9.0% → 4.8% for −0.0055 NDCG, filling freed slots with genuinely similar
+games rather than noise. It is deliberately **not** shipped: the pipeline is
+better off simple, and a real fix can be added later against the same
+measurements. See future work.
 
 ### 6.6.1 Cosine is written `matrix @ query.T`, not `query @ matrix.T`
 
@@ -414,7 +428,7 @@ Metrics must be *actionable* — each one has to change what we do next:
 | NDCG@10 | Is the ranking better? (headline) |
 | Recall@50 | Is retrieval or ranking the limit? |
 | unique@10 | Do we recycle the same few games? |
-| diversity@10 | Are results near-duplicates? (what MMR buys) |
+| diversity@10 | Are results near-duplicates? (regression guard; see §6.6.2) |
 | novelty | Are we just showing blockbusters? |
 | poor@10 | Are we recommending badly-reviewed games? (what rerank buys) |
 | tie rate | Do scores actually discriminate? |
@@ -550,7 +564,7 @@ docker compose up                       # both services
 | **M2** | Wilson popularity + first vertical slice (Popular page live) | ✅ done |
 | **M3** | Documents, TF-IDF, retrieval, `/recommend` | ✅ done |
 | **M4** | Evaluation harness + baselines *(before any tuning)* | ✅ done |
-| **M5** | Rerank, MMR, explanations — tuned against M4 | ✅ done |
+| **M5** | Rerank + explanations, tuned against M4 (MMR tried, removed) | ✅ done |
 | **M6** | Streamlit UI, three modes | next |
 | **M7** | Docker, README, `eda.ipynb` | |
 
@@ -561,5 +575,8 @@ docker compose up                       # both services
 - Learned blend weights (logistic regression over the field similarities)
 - Query-by-multiple-games (average several seed vectors)
 - Tag co-occurrence analysis for a "related tags" browse affordance
-- A per-developer cap in the top-10, which targets franchise runs directly —
-  the thing MMR measurably does *not* fix (§6.6.2)
+- A **publisher** cap in the top-10 to fix franchise clustering, the known
+  limitation left open by removing MMR. Prototyped and measured in M5 (§6.6.2);
+  not shipped, because the pipeline is better off simple until the problem is
+  worth a mechanism. Note it must cap by *publisher*, not developer — the seven
+  Assassin's Creed entries span five Ubisoft studios but one publisher.

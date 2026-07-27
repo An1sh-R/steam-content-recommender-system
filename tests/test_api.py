@@ -87,16 +87,6 @@ def test_recommend_returns_k_distinct_games(client):
     assert len({r["appid"] for r in recommendations}) == 6
 
 
-def test_recommend_honours_the_diversity_knob(client):
-    """MMR deliberately breaks strict similarity order; that is the whole point."""
-    appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
-    focused = client.get(f"/recommend/{appid}", params={"k": 10, "diversity": 0}).json()
-    spread = client.get(f"/recommend/{appid}", params={"k": 10, "diversity": 0.8}).json()
-
-    assert [r["appid"] for r in focused] != [r["appid"] for r in spread]
-    assert focused[0]["appid"] == spread[0]["appid"]
-
-
 def test_recommend_explains_itself(client):
     appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
     recommendations = client.get(f"/recommend/{appid}").json()
