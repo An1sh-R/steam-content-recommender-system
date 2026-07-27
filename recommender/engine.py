@@ -64,6 +64,3 @@ class Engine:
                 query, game, game["parts"], self.tag_counts
             )
         return games
-
-    def popular(self, k: int = 24) -> list[dict]:
-        return catalogue.browse(self.connection, limit=k)

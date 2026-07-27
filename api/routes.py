@@ -45,6 +45,35 @@ def popular(
     return [GameSummary.from_row(row) for row in catalogue.browse(con, limit=k)]
 
 
+@router.get("/browse", response_model=list[GameSummary])
+def browse(
+    q: str = Query("", description="substring of the game title"),
+    genres: list[str] = Query(default_factory=list),
+    platform: str | None = Query(None),
+    max_price: float | None = Query(None, ge=0),
+    sort_by: str = Query("popularity"),
+    limit: int = Query(24, ge=1, le=60),
+    con=Depends(get_connection),
+) -> list[GameSummary]:
+    """Faceted catalogue browse. No filters gives the popularity-ranked front page."""
+    try:
+        rows = catalogue.browse(
+            con, genres=genres, platform=platform, max_price=max_price,
+            name=q, sort_by=sort_by, limit=limit,
+        )
+    except ValueError as invalid:  # unknown sort column or platform
+        raise HTTPException(status_code=422, detail=str(invalid)) from invalid
+    return [GameSummary.from_row(row) for row in rows]
+
+
+@router.get("/facets/{column}", response_model=list[str])
+def facets(column: str, con=Depends(get_connection)) -> list[str]:
+    """Filter options for the browse UI, most common first."""
+    if column not in catalogue.CHILD_TABLES:
+        raise HTTPException(status_code=404, detail=f"No facet named {column}")
+    return catalogue.distinct_values(con, column)
+
+
 @router.get("/recommend/{appid}", response_model=list[Recommendation])
 def recommend(
     appid: int,

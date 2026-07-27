@@ -108,5 +108,5 @@ See §6.1 of [`CLAUDE.md`](CLAUDE.md).
 - [x] **M3** — TF-IDF retrieval, `/recommend/{appid}` (~25 ms per query)
 - [x] **M4** — Evaluation harness, baselines, weight sweep
 - [x] **M5** — Quality reranking, explanations (~24 ms per query)
-- [ ] **M6** — Streamlit UI
+- [x] **M6** — Streamlit UI: browse + recommend, two modes
 - [ ] **M7** — Docker, docs, EDA notebook

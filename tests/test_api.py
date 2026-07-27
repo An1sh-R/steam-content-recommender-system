@@ -112,3 +112,32 @@ def test_recommend_unknown_game_returns_404(client):
 def test_recommend_rejects_out_of_range_k(client):
     appid = client.get("/popular", params={"k": 1}).json()[0]["appid"]
     assert client.get(f"/recommend/{appid}", params={"k": 0}).status_code == 422
+
+
+def test_browse_with_no_filters_is_the_popular_front_page(client):
+    games = client.get("/browse", params={"limit": 10}).json()
+    assert len(games) == 10
+    scores = [g["popularity"] for g in games]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_browse_filters_by_title(client):
+    name = client.get("/popular", params={"k": 1}).json()[0]["name"]
+    games = client.get("/browse", params={"q": name[:6].lower()}).json()
+    assert games and all(name[:6].lower() in g["name"].lower() for g in games)
+
+
+def test_browse_narrows_by_genre(client):
+    genre = client.get("/facets/genres").json()[0]
+    games = client.get("/browse", params={"genres": [genre], "limit": 5}).json()
+    assert games and all(genre in g["genres"] for g in games)
+
+
+def test_browse_rejects_an_unknown_sort_column(client):
+    assert client.get("/browse", params={"sort_by": "; DROP TABLE"}).status_code == 422
+
+
+def test_facets_are_ordered_by_frequency(client):
+    genres = client.get("/facets/genres").json()
+    assert "Indie" in genres
+    assert client.get("/facets/nonsense").status_code == 404

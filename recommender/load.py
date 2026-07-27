@@ -52,7 +52,7 @@ def _coerce_types(df: pd.DataFrame) -> pd.DataFrame:
 
     df["release_date"] = pd.to_datetime(df["release_date"], errors="coerce", format="mixed")
 
-    for col in ["name", "description", "developers", "publishers", "header_image"]:
+    for col in ["name", "description", "developers", "publishers"]:
         df[col] = df[col].fillna("").astype(str).str.strip()
 
     for col in schema.MULTIVALUE_COLUMNS:

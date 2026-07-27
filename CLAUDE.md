@@ -95,12 +95,19 @@ yourself writing a loop in `routes.py`, it belongs in `recommender/`.
 | `GET /games/{appid}` | Game detail |
 | `GET /recommend/{appid}?k=` | Primary workflow |
 | `GET /popular?k=` | Landing page |
-| `GET /browse?genres=&tags=&platform=&price_max=` | Faceted browse |
+| `GET /browse?q=&genres=&platform=&max_price=&sort_by=` | Faceted browse |
+| `GET /facets/{column}` | Filter options for the browse UI |
+
+`/popular` is `/browse` with no filters. It is kept as a named endpoint because
+"the front page" is a distinct thing to ask for, and it costs one line.
 
 ### `app/` — Streamlit
 
-`main.py` (navigation + 3 modes), `api_client.py` (the only place `requests`
-appears), `components.py` (game card, filter sidebar).
+`main.py` (two modes: **Browse** and **Recommend similar games**),
+`api_client.py` (the only place `requests` appears), `components.py`
+(`game_card`, `game_grid`, `game_detail`).
+
+Cover art is built from the AppID, never stored — see §6.11.
 
 ### `evaluation/`
 
@@ -475,6 +482,34 @@ Filtered browse ranges 11–203 ms depending on genre breadth (`Indie` matches
 UI and is deliberately left alone — optimising it would cost a denormalised
 sort key for no benefit a user could feel.
 
+### 6.11 Cover art is derived from the AppID, not stored
+
+```python
+ARTWORK_URL = "https://cdn.akamai.steamstatic.com/steam/apps/{appid}/header.jpg"
+```
+
+The dataset ships a `Header image` column, and **it was removed from
+`USED_COLUMNS` in M6.** Every value in it was already a Steam CDN URL that the
+AppID reproduces, plus a `?t=` cache-busting timestamp that goes stale, and 23
+rows were empty. Carrying it meant a column in the schema, a column in SQLite
+and a field in the API response that only restated the primary key.
+
+Deriving it instead means no image dataset, no asset pipeline, no storage, and
+the 23 blanks fix themselves. Games with no artwork on Steam's CDN render a
+broken-image placeholder rather than raising, so the card degrades to its text
+— which is the graceful fallback we want, with no error handling to write.
+
+This is the same rule that keeps `Recommendations` and `Metacritic score` out
+of the catalogue: a column earns its place by feeding recommendation, browsing
+or explanations. A URL you can compute feeds none of them.
+
+### 6.12 Two modes, not three
+
+The original plan had Popular, Similar and Browse as separate modes. Popular is
+just Browse with no filters applied, so it is the **empty state of Browse**
+rather than its own page. Fewer places to look, one less navigation decision,
+and the cold-start answer is still the first thing a new user sees.
+
 ---
 
 ## 7. Do NOT introduce
@@ -565,8 +600,8 @@ docker compose up                       # both services
 | **M3** | Documents, TF-IDF, retrieval, `/recommend` | ✅ done |
 | **M4** | Evaluation harness + baselines *(before any tuning)* | ✅ done |
 | **M5** | Rerank + explanations, tuned against M4 (MMR tried, removed) | ✅ done |
-| **M6** | Streamlit UI, three modes | next |
-| **M7** | Docker, README, `eda.ipynb` | |
+| **M6** | Streamlit UI, two modes | ✅ done |
+| **M7** | README, architecture diagram, `eda.ipynb`, packaging | next |
 
 ### Future improvements (explicitly out of scope for now)
 

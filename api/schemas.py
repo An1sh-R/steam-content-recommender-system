@@ -12,8 +12,8 @@ class GameSummary(BaseModel):
     name: str
     release_year: int | None = None
     price: float
-    header_image: str
     developers: str
+    publishers: str
     tags: list[str]
     genres: list[str]
     positive: int

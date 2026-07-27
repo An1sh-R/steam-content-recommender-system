@@ -24,9 +24,30 @@ def popular(k: int = 24) -> list[dict]:
     return _get("/popular", k=k)
 
 
+def browse(
+    q: str = "",
+    genres: list[str] | None = None,
+    max_price: float | None = None,
+    sort_by: str = "popularity",
+    limit: int = 24,
+) -> list[dict]:
+    params: dict = {"q": q, "sort_by": sort_by, "limit": limit, "genres": genres or []}
+    if max_price is not None:
+        params["max_price"] = max_price
+    return _get("/browse", **params)
+
+
+def facets(column: str) -> list[str]:
+    return _get(f"/facets/{column}")
+
+
 def search_games(query: str, limit: int = 20) -> list[dict]:
     return _get("/games", q=query, limit=limit)
 
 
 def get_game(appid: int) -> dict:
     return _get(f"/games/{appid}")
+
+
+def recommend(appid: int, k: int = 10) -> list[dict]:
+    return _get(f"/recommend/{appid}", k=k)

@@ -6,21 +6,35 @@ import streamlit as st
 
 STEAM_URL = "https://store.steampowered.com/app/{appid}"
 
+# Artwork is derived from the AppID rather than stored. Steam serves a header
+# image at a predictable path for every app, so the project needs no image
+# dataset, no asset pipeline and no column in the catalogue for it.
+ARTWORK_URL = "https://cdn.akamai.steamstatic.com/steam/apps/{appid}/header.jpg"
+
+
+def artwork(game: dict) -> str:
+    return ARTWORK_URL.format(appid=game["appid"])
+
 
 def game_card(game: dict) -> None:
-    """One game tile: art, title, approval, tags."""
+    """One game tile: art, title, approval, tags, and why it was recommended."""
     with st.container(border=True):
-        if game.get("header_image"):
-            st.image(game["header_image"], use_container_width=True)
+        # Delisted and very old titles have no header image. Streamlit renders a
+        # broken-image placeholder rather than raising, so the card degrades to
+        # its text -- which is the graceful fallback we want.
+        st.image(artwork(game), width="stretch")
 
         st.markdown(f"**[{game['name']}]({STEAM_URL.format(appid=game['appid'])})**")
 
         left, right = st.columns(2)
-        left.caption(_approval(game))
-        right.caption(_price(game["price"]))
+        left.caption(approval(game))
+        right.caption(price(game["price"]))
 
-        if game["tags"]:
+        if game.get("tags"):
             st.caption(" · ".join(game["tags"][:3]))
+
+        for reason in game.get("reasons", []):
+            st.caption(f"↳ {reason}")
 
 
 def game_grid(games: list[dict], columns: int = 4) -> None:
@@ -32,12 +46,49 @@ def game_grid(games: list[dict], columns: int = 4) -> None:
                 game_card(game)
 
 
-def _approval(game: dict) -> str:
+def game_detail(game: dict) -> None:
+    """The selected game, shown larger than a card before its recommendations."""
+    art, facts = st.columns([1, 2])
+    with art:
+        st.image(artwork(game), width="stretch")
+
+    with facts:
+        st.subheader(game["name"])
+        st.caption(byline(game))
+
+        stats = st.columns(3)
+        stats[0].metric("Approval", _ratio(game))
+        stats[1].metric("Reviews", f"{game['total_reviews']:,}")
+        stats[2].metric("Popularity", f"{game['popularity']:.2f}")
+
+        st.caption(price(game["price"]))
+        if game.get("genres"):
+            st.write(" ".join(f"`{genre}`" for genre in game["genres"]))
+        if game.get("tags"):
+            st.write(" ".join(f"`{tag}`" for tag in game["tags"][:10]))
+
+
+def approval(game: dict) -> str:
     total = game["total_reviews"]
     if not total:
         return "No reviews"
     return f"{round(100 * game['positive'] / total)}% of {total:,} reviews"
 
 
-def _price(price: float) -> str:
-    return "Free" if price == 0 else f"${price:.2f}"
+def price(value: float) -> str:
+    return "Free" if value == 0 else f"${value:.2f}"
+
+
+def byline(game: dict) -> str:
+    """Developer, publisher and year -- deduplicated, because for most indie
+    games on Steam the developer and the publisher are the same studio."""
+    studios = dict.fromkeys(filter(None, [game.get("developers"), game.get("publishers")]))
+    parts = [" / ".join(studios)] if studios else []
+    if game.get("release_year"):
+        parts.append(str(game["release_year"]))
+    return " · ".join(parts)
+
+
+def _ratio(game: dict) -> str:
+    total = game["total_reviews"]
+    return f"{round(100 * game['positive'] / total)}%" if total else "n/a"

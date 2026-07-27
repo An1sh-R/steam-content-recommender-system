@@ -55,9 +55,10 @@ def test_review_counts_are_counts_not_percentages(sample_df):
     assert sample_df["positive"].max() > 1000
 
 
-def test_header_image_is_a_url(sample_df):
-    urls = sample_df.loc[sample_df["header_image"] != "", "header_image"]
-    assert (urls.str.startswith("http")).mean() > 0.95
+def test_artwork_is_not_carried_as_a_column(sample_df):
+    """Cover art is derived from the AppID (see app/components.py), so the
+    dataset's Header image column is deliberately not loaded."""
+    assert "header_image" not in sample_df.columns
 
 
 def test_types_are_coerced(sample_df):

@@ -89,6 +89,7 @@ def browse(
     categories: list[str] | None = None,
     platform: str | None = None,
     max_price: float | None = None,
+    name: str | None = None,
     sort_by: str = "popularity",
     limit: int = 60,
 ) -> list[dict]:
@@ -98,6 +99,10 @@ def browse(
 
     clauses: list[str] = []
     params: list = []
+
+    if name:
+        clauses.append("g.name LIKE ? COLLATE NOCASE")
+        params.append(f"%{name}%")
 
     if max_price is not None:
         clauses.append("g.price <= ?")
