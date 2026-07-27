@@ -127,6 +127,18 @@ clone — nothing to download, nothing to configure.
 
 <details>
 <summary><b>Prefer to run it without Docker?</b></summary>
+> **Note**
+> If you're running locally, activate your virtual environment before running the commands below. Docker users can skip this step.
+
+**Windows**
+```bash
+.\venv\Scripts\activate
+```
+
+**macOS/Linux**
+```bash
+source .venv/bin/activate
+```
 
 Install dependencies:
 
