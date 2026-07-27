@@ -13,6 +13,19 @@ quality, and explains every recommendation.
 It is a **portfolio and interview project**. It optimises for clarity,
 explainability, and demonstrable engineering judgement — not for scale.
 
+### The document set
+
+| document | audience | job |
+|---|---|---|
+| `README.md` | first-time visitor | What it is, how to run it. Skimmable in 5 minutes. |
+| `docs/ENGINEERING.md` | interested engineer | Decisions, evaluation, experiments, trade-offs. |
+| **`CLAUDE.md`** (this file) | anyone changing the code | Exhaustive source of truth. |
+| `evaluation/results.md` | — | Generated metric tables. Never hand-edited. |
+| `eda.ipynb` | — | Exploratory evidence. Presentation only, no project logic. |
+
+Keep the README free of deep technical discussion; it belongs in
+`docs/ENGINEERING.md`, and its full reasoning belongs in §6 below.
+
 ---
 
 ## 2. Philosophy
@@ -482,6 +495,42 @@ Filtered browse ranges 11–203 ms depending on genre breadth (`Indie` matches
 UI and is deliberately left alone — optimising it would cost a denormalised
 sort key for no benefit a user could feel.
 
+### 6.10.1 The typeahead needed a covering index and a `+` (M7)
+
+`search_names` was **0.1 ms for `"a"` and 1,070 ms for a title that matches
+nothing**, which is the wrong way round: typing a specific title is what a
+typeahead is *for*. The plan explained it —
+
+```
+SCAN games USING INDEX idx_games_popularity
+```
+
+— SQLite satisfied `ORDER BY popularity DESC` by walking the popularity index
+and testing `LIKE` row by row until it had 20 matches. A common substring stops
+after a few rows; a rare one walks all 55,973, each a random read into a table
+that carries the descriptions.
+
+Two changes, measured:
+
+| query | before | after |
+|---|--:|--:|
+| `a` | 0.1 ms | 6.7 ms |
+| `portal` | 154 ms | 5.7 ms |
+| `hades` | 243 ms | 5.8 ms |
+| `zzzznotagame` (no match) | **1,070 ms** | **5.4 ms** |
+
+1. **`ORDER BY +popularity DESC`.** The unary plus makes the ordering
+   non-indexable, so SQLite filters first and sorts the handful of survivors.
+   It looks like a typo and is commented as load-bearing in `search_names`.
+2. **A covering index** on exactly the columns the typeahead reads
+   (`SEARCH_COLUMNS`). The scan is then served entirely from the index and never
+   touches the 180 MB table.
+
+Best case is now slower (0.1 → 6.7 ms) and the DB grew by a few MB. Both are
+worth a flat, predictable 6 ms. `tests/test_catalogue.py` asserts on the *query
+plan* rather than on a latency number, so the regression is caught
+deterministically.
+
 ### 6.11 Cover art is derived from the AppID, not stored
 
 ```python
@@ -584,9 +633,14 @@ python -m evaluation.run_eval           # evaluation -> evaluation/results.md
 uvicorn api.main:app --reload           # API
 streamlit run app/main.py               # UI
 docker compose up                       # both services
+
+jupyter lab eda.ipynb                   # EDA notebook (presentation only)
 ```
 
-*(Commands past `make_sample.py` land in later milestones.)*
+**Regenerating the README screenshots** is a rare manual task and deliberately
+has no tooling checked in: run the UI, then drive it with Playwright installed
+ad hoc (`pip install playwright && playwright install chromium`). A 150 MB
+browser is not worth adding to a project whose dependency list is this short.
 
 ---
 
@@ -601,7 +655,7 @@ docker compose up                       # both services
 | **M4** | Evaluation harness + baselines *(before any tuning)* | ✅ done |
 | **M5** | Rerank + explanations, tuned against M4 (MMR tried, removed) | ✅ done |
 | **M6** | Streamlit UI, two modes | ✅ done |
-| **M7** | README, architecture diagram, `eda.ipynb`, packaging | next |
+| **M7** | README, architecture diagrams, `eda.ipynb`, packaging | ✅ done |
 
 ### Future improvements (explicitly out of scope for now)
 

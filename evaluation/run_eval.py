@@ -105,7 +105,8 @@ def main() -> None:
         rows.append(
             evaluate(model, queries, relevance, held_out, popularity_pct, publishers, ratio)
         )
-        print(f"  {model.name:22s} ndcg={rows[-1]['ndcg']:.3f}  ({time.perf_counter()-started:.0f}s)")
+        elapsed = time.perf_counter() - started
+        print(f"  {model.name:26s} ndcg={rows[-1]['ndcg']:.3f}  ({elapsed:.0f}s)")
 
     _write(pd.DataFrame(rows), games, queries, args.sample)
     print(f"\nwrote {RESULTS}")
