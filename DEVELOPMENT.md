@@ -1,4 +1,4 @@
-# CLAUDE.md — Developer Guide
+# Development guide
 
 Single source of truth for this project. Read this before changing anything.
 
@@ -19,7 +19,7 @@ explainability, and demonstrable engineering judgement — not for scale.
 |---|---|---|
 | `README.md` | first-time visitor | What it is, how to run it. Skimmable in 5 minutes. |
 | `docs/ENGINEERING.md` | interested engineer | Decisions, evaluation, experiments, trade-offs. |
-| **`CLAUDE.md`** (this file) | anyone changing the code | Exhaustive source of truth. |
+| **`DEVELOPMENT.md`** (this file) | anyone changing the code | Exhaustive source of truth. |
 | `evaluation/results.md` | — | Generated metric tables. Never hand-edited. |
 
 Keep the README free of deep technical discussion; it belongs in

@@ -81,7 +81,7 @@ def test_acclaim_needs_both_a_high_ratio_and_enough_reviews(query):
 
 
 def test_a_shared_developer_is_an_explanation_not_a_ranking_signal(query):
-    """Developers are excluded from similarity (see CLAUDE.md 6.5) but they are a
+    """Developers are excluded from similarity (see DEVELOPMENT.md 6.5) but they are a
     true and useful thing to say about a game that already ranked."""
     parts = {"tags": 0.5, "genres": 0.0, "description": 0.0}
     lines = explain.reasons(query, _candidate(developers="Mega Crit"), parts, TAG_COUNTS)

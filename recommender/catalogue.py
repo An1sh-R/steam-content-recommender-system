@@ -44,10 +44,11 @@ SEARCH_SQL = """
 
 # Re-joins each child table into a comma-separated column, so reads return
 # display-ready rows without the caller issuing extra queries.
-_LIST_COLUMNS = ", ".join(
-    f"(SELECT group_concat({value_column}, ',') FROM {table} WHERE appid = g.appid) AS {column}"
-    for column, (table, value_column) in CHILD_TABLES.items()
-)
+_LIST_COLUMNS = """
+    (SELECT group_concat(tag, ',')      FROM game_tags       WHERE appid = g.appid) AS tags,
+    (SELECT group_concat(genre, ',')    FROM game_genres     WHERE appid = g.appid) AS genres,
+    (SELECT group_concat(category, ',') FROM game_categories WHERE appid = g.appid) AS categories
+"""
 
 
 def build_db(df: pd.DataFrame, path: Path) -> None:

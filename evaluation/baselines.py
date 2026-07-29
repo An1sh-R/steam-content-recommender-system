@@ -11,7 +11,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from recommender import config, documents, rerank, retrieval, vectorize
@@ -110,7 +109,3 @@ def _random_ranker(n_games: int):
         return ranked, np.zeros(n)
 
     return rank
-
-
-def as_sparse(matrix) -> sparse.csr_matrix:
-    return matrix.tocsr()

@@ -29,7 +29,7 @@ WEIGHT_SWEEP = {
 }
 
 # The quality prior, ablated against `weighted tuned` (the same pipeline with it
-# off). MMR was measured here too and removed in M5; see CLAUDE.md 6.6.2.
+# off). MMR was measured here too and removed in M5; see DEVELOPMENT.md 6.6.2.
 STAGE_BASELINE = "weighted tuned"
 STAGE_SWEEP = {
     "rerank (shipped)": ("quality prior", {"quality": True}),
@@ -216,7 +216,7 @@ def _write(table: pd.DataFrame, games, queries, sample: bool) -> None:
         "measured against these metrics in M5, then deleted: it bought +0.019 "
         "diversity@10 but left franchise clustering untouched, and returned "
         "output identical to no diversification on half the queries tried. "
-        "The metric stays as a regression guard. See CLAUDE.md 6.6.2.",
+        "The metric stays as a regression guard. See DEVELOPMENT.md 6.6.2.",
     ]
     RESULTS.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

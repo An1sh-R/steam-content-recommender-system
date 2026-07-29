@@ -10,7 +10,7 @@ Three documents, three jobs:
 |---|---|
 | [`README.md`](../README.md) | What the project is and how to run it |
 | **this file** | Why it is built this way, and what was measured |
-| [`CLAUDE.md`](../CLAUDE.md) | Exhaustive developer guide and source of truth |
+| [`DEVELOPMENT.md`](../DEVELOPMENT.md) | Exhaustive developer guide and source of truth |
 
 Raw numbers live in [`evaluation/results.md`](../evaluation/results.md), which
 `python -m evaluation.run_eval` regenerates.
