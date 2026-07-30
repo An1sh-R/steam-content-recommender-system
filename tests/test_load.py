@@ -1,10 +1,8 @@
-"""Pins the raw dataset's header defect, and checks each column holds what its
-name claims.
+"""Tests that the Steam CSV is loaded with the correct columns.
 
-The content assertions are the real guard: a misaligned read still produces a
-valid-looking DataFrame, so shape assertions catch nothing. Only asserting on
-*content* does. If these fail, the upstream layout changed and every downstream
-feature is suspect until RAW_COLUMNS is re-verified.
+The original CSV header is broken: it has 39 column names while each row has
+40 values. These tests make sure our corrected column layout still matches the
+data and that important columns contain the values we expect.
 """
 
 import csv
@@ -104,7 +102,7 @@ def test_naive_read_is_misaligned(sample_df):
     naive = pd.read_csv(config.SAMPLE_CSV, index_col=False, low_memory=False)
 
     naive_desc = naive["About the game"].dropna().astype(str)
-    assert naive_desc.str.split().str.len().mean() < 5, "naive read should NOT yield prose"
+    assert naive_desc.str.split().str.len().mean() < 5, "naive read should NOT yield prose" # pyright: ignore[reportAttributeAccessIssue]
 
     # Ours does, from the same file.
     assert sample_df["description"].str.split().str.len().mean() > 50

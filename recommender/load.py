@@ -1,33 +1,3 @@
-"""Raw CSV -> typed DataFrame.
-
-THE HEADER DEFECT
------------------
-The published CSV has a malformed header row. It declares **39** column names,
-but every data row contains **40** fields. The culprit is header field 7,
-written as ``DiscountDLC count`` -- a missing comma between ``Discount`` and
-``DLC count``.
-
-Because pandas aligns the 39 declared names against the first 39 fields, every
-column from index 7 onward is labelled with its *neighbour's* name:
-
-    header says ...          row actually holds ...
-    "About the game"     ->  DLC count (an integer)
-    "Positive"           ->  User score (0-100)
-    "Categories"         ->  Publishers
-    "Genres"             ->  Categories
-    "Tags"               ->  Genres
-    (no header)          ->  Movies
-
-This is not cosmetic: a TF-IDF index built from the mislabelled columns indexes
-*Categories + Publishers + Genres* while believing it indexes tags and
-descriptions. So we ignore the published header entirely and supply our own
-names positionally. ``RAW_COLUMNS`` is the true 40-field ordering, verified
-against the data rather than the header.
-
-Loading is deliberately separate from cleaning: this module only fixes the
-column contract and coerces types. Row filtering happens in ``clean.py``.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -82,9 +52,6 @@ RAW_COLUMNS = [
 
 # Only these are read into memory. A column earns its place by feeding
 # recommendation, browsing, or explanations -- nothing else is carried.
-#   Recommendations : redundant with Positive + Negative
-#   Achievements    : no bearing on similarity, quality or browsing
-#   Metacritic      : only 3.4% of games have a score
 USED_COLUMNS = [
     "AppID",
     "Name",
@@ -124,8 +91,6 @@ COLUMN_RENAME = {
     "Tags": "tags",
 }
 
-NUMERIC_COLUMNS = ["price", "positive", "negative"]
-BOOLEAN_COLUMNS = ["windows", "mac", "linux"]
 MULTIVALUE_COLUMNS = ["categories", "genres", "tags"]
 
 
@@ -151,24 +116,18 @@ def load_raw(path: Path | None = None) -> pd.DataFrame:
         low_memory=False,
     )
     df = df.rename(columns=COLUMN_RENAME)
-    return _coerce_types(df)
 
+    # Pandas reads the rest of the columns correctly on its own: AppID and the
+    # review counts come out as integers, Price as a float, and the platform
+    # flags as booleans. Only these two need help.
 
-def _coerce_types(df: pd.DataFrame) -> pd.DataFrame:
-    df["appid"] = pd.to_numeric(df["appid"], errors="coerce").astype("Int64")
-
-    for col in NUMERIC_COLUMNS:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
-    for col in BOOLEAN_COLUMNS:
-        df[col] = df[col].astype(str).str.strip().str.lower().eq("true")
-
+    # Dates arrive as plain text, and clean.py reads .dt.year off this column.
+    # format="mixed" because the file has both "Oct 21, 2008" and "Oct 2008".
     df["release_date"] = pd.to_datetime(df["release_date"], errors="coerce", format="mixed")
 
-    for col in ["name", "description", "developers", "publishers"]:
-        df[col] = df[col].fillna("").astype(str).str.strip()
-
-    for col in MULTIVALUE_COLUMNS:
+    # Missing text arrives as NaN, and NaN != "" is True -- so without this the
+    # has-tags filter in clean.py would let all 42,502 untagged games through.
+    for col in ["name", "description", "developers", "publishers", *MULTIVALUE_COLUMNS]:
         df[col] = df[col].fillna("").astype(str).str.strip()
 
     return df
