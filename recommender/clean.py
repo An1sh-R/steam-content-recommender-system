@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import pandas as pd
 
-from recommender import config, schema
+from recommender import config, load
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     """Filter to the recommendable catalogue and normalise fields."""
     df = df[_is_recommendable(df)].copy()
 
-    for col in schema.MULTIVALUE_COLUMNS:
+    for col in load.MULTIVALUE_COLUMNS:
         df[col] = df[col].map(split_values)
 
     df["total_reviews"] = df["positive"] + df["negative"]

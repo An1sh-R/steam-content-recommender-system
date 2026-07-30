@@ -79,7 +79,7 @@ built from *Categories + Publishers + Genres* — no tags, no descriptions — s
 was a **publisher matcher** that looked plausible because it silently grouped
 games by publisher.
 
-[`recommender/schema.py`](../recommender/schema.py) supplies the true layout
+[`recommender/load.py`](../recommender/load.py) supplies the true layout
 positionally. `tests/test_load.py` asserts on column *contents*, because a
 misaligned read still produces a structurally valid DataFrame — only content
 assertions catch it.

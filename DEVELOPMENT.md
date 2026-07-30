@@ -82,8 +82,7 @@ Do not break it.
 | Module | Responsibility |
 |---|---|
 | `config.py` | Every tunable: paths, thresholds, weights. Nothing else. |
-| `schema.py` | **The column contract.** True field order + validation. See §6.1. |
-| `load.py` | Raw CSV → typed DataFrame. Fixes columns, coerces types. No filtering. |
+| `load.py` | **The column contract** (true field order, see §6.1) + raw CSV → typed DataFrame. Coerces types. No filtering. |
 | `clean.py` | Catalogue filter; splits multi-value fields into lists. |
 | `popularity.py` | Wilson-based quality score. See §6.2. |
 | `documents.py` | Builds per-field-group documents for vectorization. |
@@ -133,7 +132,7 @@ Cover art is built from the AppID, never stored — see §6.11.
 **Offline** (`python -m recommender.build`, ~1 min on the full dataset):
 
 ```
-games.csv → schema (fix columns) → load (types) → clean (filter to ~56k)
+games.csv → load (fix columns, coerce types) → clean (filter to ~56k)
           → popularity (Wilson) → documents → vectorize
           → data/artifacts/*.npz + data/processed/catalogue.db
 ```
@@ -183,7 +182,7 @@ The result was a publisher-matcher that looked plausible (Witcher 3 → Cyberpun
 2077 → Gwent) because it was silently grouping games by publisher.
 
 **Never read this CSV with its own header.** Always go through `load.load_raw()`,
-which supplies `schema.RAW_COLUMNS` positionally. `tests/test_load.py` asserts
+which supplies `load.RAW_COLUMNS` positionally. `tests/test_load.py` asserts
 on column *contents*, because a misaligned read still produces a
 structurally-valid DataFrame — only content assertions catch it.
 

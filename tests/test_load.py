@@ -1,13 +1,17 @@
-"""Semantic checks that each column holds what its name claims.
+"""Pins the raw dataset's header defect, and checks each column holds what its
+name claims.
 
-These are the real guard against the header defect: a misaligned read still
-produces a valid-looking DataFrame, so shape assertions catch nothing. Only
-asserting on *content* does.
+The content assertions are the real guard: a misaligned read still produces a
+valid-looking DataFrame, so shape assertions catch nothing. Only asserting on
+*content* does. If these fail, the upstream layout changed and every downstream
+feature is suspect until RAW_COLUMNS is re-verified.
 """
+
+import csv
 
 import pandas as pd
 
-from recommender import config, schema
+from recommender import config, load
 
 KNOWN_TAGS = {"Singleplayer", "Indie", "Atmospheric", "2D", "Action"}
 KNOWN_GENRES = {"Action", "Adventure", "RPG", "Indie", "Casual", "Strategy"}
@@ -21,8 +25,35 @@ def _values(series: pd.Series) -> set[str]:
     return out
 
 
+def test_raw_columns_declares_forty_fields():
+    assert len(load.RAW_COLUMNS) == 40
+    assert len(set(load.RAW_COLUMNS)) == 40, "column names must be unique"
+
+
+def test_published_header_is_malformed():
+    """The header declares 39 names while rows carry 40 fields."""
+    with open(config.SAMPLE_CSV, encoding="utf-8", newline="") as fh:
+        reader = csv.reader(fh)
+        header = next(reader)
+        widths = {len(row) for row in reader}
+
+    assert len(header) == 39
+    assert widths == {40}
+    assert "DiscountDLC count" in header, "the two merged columns should still be merged"
+
+
+def test_merged_field_is_the_documented_one():
+    with open(config.SAMPLE_CSV, encoding="utf-8", newline="") as fh:
+        header = next(csv.reader(fh))
+
+    assert header[7] == "DiscountDLC count"
+    # RAW_COLUMNS splits exactly that field into two.
+    assert load.RAW_COLUMNS[7] == "Discount"
+    assert load.RAW_COLUMNS[8] == "DLC count"
+
+
 def test_expected_columns_present(sample_df):
-    assert set(sample_df.columns) == set(schema.COLUMN_RENAME.values())
+    assert set(sample_df.columns) == set(load.COLUMN_RENAME.values())
 
 
 def test_appids_are_unique_integers(sample_df):

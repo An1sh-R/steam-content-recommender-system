@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from recommender import schema
+from recommender import load
 
 # Multi-value fields are exploded into indexed child tables so they can be filtered on.
 CHILD_TABLES = {
@@ -56,7 +56,7 @@ def build_db(df: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
 
-    games = df.drop(columns=list(schema.MULTIVALUE_COLUMNS))
+    games = df.drop(columns=list(load.MULTIVALUE_COLUMNS))
 
     with sqlite3.connect(path) as con:
         games.to_sql("games", con, index=False)
