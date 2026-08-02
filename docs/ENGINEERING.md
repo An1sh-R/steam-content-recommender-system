@@ -1,44 +1,66 @@
 # Engineering notes
 
-The technical companion to the [README](../README.md): the decisions behind the
-recommender, the experiments that settled them, and the ones that measurement
-reversed.
+The technical companion to the [README](../README.md): how the code is laid
+out, the decisions behind the recommender, the experiments that settled them,
+and the ones that measurement reversed.
 
-Three documents, three jobs:
-
-| document | purpose |
-|---|---|
-| [`README.md`](../README.md) | What the project is and how to run it |
-| **this file** | Why it is built this way, and what was measured |
-| [`DEVELOPMENT.md`](../DEVELOPMENT.md) | Exhaustive developer guide and source of truth |
-
-Raw numbers live in [`evaluation/results.md`](../evaluation/results.md), which
-`python -m evaluation.run_eval` regenerates.
+Raw numbers live in [`results.md`](results.md), which `python -m app.evaluate`
+regenerates.
 
 ---
 
 ## Contents
 
-- [Why content-based, not collaborative filtering](#why-content-based-not-collaborative-filtering)
+- [How the code is organised](#how-the-code-is-organised)
+- [Data flow](#data-flow)
 - [Design decisions](#design-decisions)
-  - [The dataset header is malformed](#the-dataset-header-is-malformed--and-v1-shipped-on-it)
+  - [The dataset header is malformed](#the-dataset-header-is-malformed)
   - [Popularity is a Wilson lower bound](#popularity-is-a-wilson-lower-bound-not-owners)
   - [56k of 125,855 games](#56k-of-125855-games)
   - [Developers and publishers excluded from similarity](#developers-and-publishers-are-excluded-from-similarity)
   - [Reranking is multiplicative](#reranking-is-multiplicative)
+  - [Explanations follow the ranking](#explanations-follow-the-ranking-not-the-game)
 - [Evaluation](#evaluation)
   - [The held-out tag protocol](#the-held-out-tag-protocol)
-  - [Three TF-IDF spaces vs one](#three-tf-idf-spaces-vs-one)
+  - [Three TF-IDF models vs one](#three-tf-idf-models-vs-one)
   - [Final feature weights](#final-feature-weights)
   - [Quality reranking](#quality-reranking)
   - [The MMR prototype, and why it was removed](#the-mmr-prototype-and-why-it-was-removed)
 - [Performance](#performance)
+- [Testing](#testing)
+- [Common commands](#common-commands)
 - [Limitations](#limitations)
 - [Future work](#future-work)
 
 ---
 
-## Why content-based, not collaborative filtering
+## How the code is organised
+
+Nine Python files, and each one has an obvious job.
+
+| file | what it does |
+|---|---|
+| `app/config.py` | Every tunable number: weights, thresholds, file paths |
+| `app/build.py` | Offline: read the CSV, clean it, score popularity, write the artifacts |
+| `app/database.py` | The SQLite catalogue — building it and querying it |
+| `app/recommender.py` | **The engine.** Documents → TF-IDF → similarity → rerank |
+| `app/explain.py` | Score breakdown → short readable reasons |
+| `app/api.py` | FastAPI endpoints and their response models |
+| `app/evaluate.py` | The evaluation harness, its metrics and its baselines |
+| `frontend/streamlit_app.py` | The entire user interface |
+| `scripts/make_sample.py` | Regenerates the committed 600-game sample |
+
+The one deliberate rule: **`app/recommender.py` can be read top to bottom and
+contains the whole algorithm.** Understanding how a recommendation is produced
+should not mean opening six files. Everything else is either what feeds it
+(`build.py`, `database.py`), what presents it (`api.py`, the front end), or what
+checks it (`evaluate.py`).
+
+There is exactly one class in the recommendation path, `Engine`, because it
+represents genuine state: the loaded matrices and the open database connection,
+built once and reused for every request. Everything else is a function.
+
+### Why content-based, not collaborative filtering
 
 **Because the honest answer to "should this be collaborative filtering?" is no.**
 
@@ -58,9 +80,42 @@ at all. An embedding model would be a black box wrapped around the same task.
 
 ---
 
+## Data flow
+
+**Offline** (`python -m app.build`, about a minute on the full dataset):
+
+```
+games.csv → load_raw_csv (fix the columns, coerce types)
+          → clean_games (filter to ~56k, split the list fields)
+          → popularity_score (Wilson + reach + recency)
+          → build_database    → data/processed/catalogue.db
+          → build_tfidf_matrices → data/artifacts/*.npz
+```
+
+The cleaned DataFrame is passed between steps **in memory** and never written to
+disk. Nothing at serve time reads it — vectors come from the `.npz` files and
+metadata from SQLite — so an intermediate file would be an artifact with no
+consumer. Batch jobs that need it (the evaluation harness) rebuild it themselves.
+
+**Online** (per request):
+
+```
+Streamlit → FastAPI → recommend()
+                        ├─ three cosine similarities → blend → top 300
+                        ├─ apply_quality_boost → top k
+                        ├─ database.get_games → metadata
+                        └─ explain_recommendation → reasons
+```
+
+**Everything keys on AppID.** Titles are display-only — the dataset has 1,210
+duplicate names. The search dropdown shows `"Name (Year) - Developer"` but
+carries the AppID as its value.
+
+---
+
 ## Design decisions
 
-### The dataset header is malformed — and V1 shipped on it
+### The dataset header is malformed
 
 The published CSV declares **39 column names** but every data row has **40
 fields**: header field 7 is `DiscountDLC count`, a missing comma. Every column
@@ -79,15 +134,14 @@ built from *Categories + Publishers + Genres* — no tags, no descriptions — s
 was a **publisher matcher** that looked plausible because it silently grouped
 games by publisher.
 
-[`recommender/load.py`](../recommender/load.py) supplies the true layout
-positionally. `tests/test_load.py` asserts on column *contents*, because a
+`RAW_COLUMNS` in `app/build.py` supplies the true layout positionally.
+`tests/test_data.py` asserts on column *contents*, not names, because a
 misaligned read still produces a structurally valid DataFrame — only content
 assertions catch it.
 
-There is no naive read that works, which the notebook demonstrates executably:
-`read_csv()` silently promotes AppID to the index and shifts every column before
-the merge point; `index_col=False` shifts everything after it, turning
-descriptions into DLC counts.
+There is no naive read that works: `read_csv()` silently promotes AppID to the
+index and shifts every column before the merge point; `index_col=False` shifts
+everything after it, turning descriptions into DLC counts.
 
 ### Popularity is a Wilson lower bound, not owners
 
@@ -112,7 +166,7 @@ age 0 rather than scoring above 1.
 ### 56k of 125,855 games
 
 Filter: `reviews ≥ 10` AND has tags AND `description ≥ 20 words` AND not a
-playtest/demo/soundtrack, then reissues collapsed. **55,973 kept (44.5%).**
+playtest/demo/soundtrack, then re-releases collapsed. **55,973 kept (44.5%).**
 
 This is a *tag-coverage* filter, not a popularity filter: games with 0 reviews
 have **0.9% tag coverage**; games with ≥1 review have **100%**. The excluded
@@ -170,18 +224,22 @@ reach and recency and would make the sentence untrue.
 There are no user interactions in this dataset, so there is no behavioural
 ground truth. The system is evaluated as what it is — an IR system.
 
-Each game's tags are split in half. The model is fitted on one half; relevance is
-Jaccard overlap on the other. **The judging signal is never in the feature
+Each game's tags are split in half. The models are fitted on one half; relevance
+is Jaccard overlap on the other. **The judging signal is never in the feature
 space**, so the comparison is not circular — the trap most attribute-based
-proxies fall into. The evaluation model is a separate fit from the production
-model, which uses all tags.
+proxies fall into. The evaluation models are a separate fit from the production
+one, which uses all tags.
 
-Every metric has to change what happens next, or it is not reported:
+The ten games sharing the most held-out tags with a query are treated as the
+right answers, which gives all four ranking metrics one consistent definition of
+"relevant":
 
 | metric | answers |
 |---|---|
-| NDCG@10 | Is the ranking better? (headline) |
-| Recall@50 | Is retrieval or ranking the limit? |
+| Precision@10 | Of what we showed, how much was relevant? |
+| Recall@50 | Of what was relevant, how much did we find? |
+| MAP@10 | Did the relevant results land near the top? |
+| NDCG@10 | Is the whole ranking in the right order? (headline) |
 | unique@10 | Do we recycle the same few games? |
 | diversity@10 | Are results near-duplicates? |
 | novelty | Are we just showing blockbusters? |
@@ -190,30 +248,36 @@ Every metric has to change what happens next, or it is not reported:
 | same publisher | Have we regressed to V1? |
 | self-retrieval | Does a game recommend itself? (must be 0) |
 
-**Dropped for failing that bar:** MAP@10 (moves with NDCG) and Precision@10
-(needs an arbitrary cut-off; at Jaccard ≥ 0.3 on half-sized tag sets it read
-~0.08 for every model and ordered them identically to NDCG).
+**Read Precision, Recall and MAP as relative signals, not absolute scores.** Only
+ten games out of 55,973 count as relevant for any query, and they are whichever
+titles happen to share the most hidden tags — often obscure games with nearly
+identical tag lists rather than ones a human would pick. So the absolute numbers
+are tiny (Precision@10 ≈ 0.024) even for a model that is working well. What
+matters is that they separate the models, and that they order them the same way
+NDCG does. NDCG is the headline because graded relevance uses the whole overlap
+score rather than an arbitrary cut at ten.
 
 *All results below: 55,973 games · 500 stratified queries ·
-[full tables](../evaluation/results.md)*
+[full tables](results.md)*
 
-### Three TF-IDF spaces vs one
+### Three TF-IDF models vs one
 
 There are 451 distinct tags but ~28,000 distinct description words. In a single
 shared space, prose dominates the vocabulary and distorts IDF for tags.
 
-| model | NDCG@10 | vs single space |
+| model | NDCG@10 | vs single model |
 |---|--:|--:|
-| **weighted, three spaces** | **0.259** | **+53%** |
-| tags only | 0.221 | +31% |
-| description only | 0.180 | +7% |
-| single concatenated space | 0.169 | — |
-| genres only | 0.158 | −7% |
-| popularity baseline | 0.077 | −54% |
-| random | 0.075 | −56% |
+| **weighted, three models** | **0.257** | **+53%** |
+| tags only | 0.220 | +31% |
+| description only | 0.177 | +5% |
+| single concatenated model | 0.168 | — |
+| genres only | 0.158 | −6% |
+| popularity baseline | 0.078 | −54% |
+| random | 0.060 | −64% |
 
-Three spaces beat one concatenated document by **53%**, and the popularity
-baseline by **3.4×**. The decisive argument is still explainability: three
+Three models beat one concatenated document by **53%**, and the popularity
+baseline by **3.3×**. Precision, Recall and MAP order the models identically —
+see [results.md](results.md). The decisive argument is still explainability: three
 *named* similarity numbers per candidate are what the explanations are written
 from. It stayed cheap — roughly 15 lines more than a single document.
 
@@ -225,30 +289,30 @@ The sweep disagreed.
 
 | weights (tags / genres / desc) | NDCG@10 |
 |---|--:|
-| **0.35 / 0.20 / 0.45 (shipped)** | **0.259** |
-| 0.30 / 0.20 / 0.50 | 0.258 |
-| 0.60 / 0.15 / 0.25 *(my prior)* | 0.247 |
-| 0.80 / 0.20 / — | 0.239 |
+| **0.35 / 0.20 / 0.45 (shipped)** | **0.257** |
+| 0.30 / 0.20 / 0.50 | 0.257 |
+| 0.60 / 0.15 / 0.25 *(my prior)* | 0.248 |
+| 0.80 / 0.20 / — | 0.240 |
 
 Validated on a fresh 800-query sample with a different seed: **+0.0093 NDCG,
 95% CI [+0.0059, +0.0127]**. Descriptions evidently carry mechanics and setting
 that tags miss.
 
 The more useful finding is that the surface is **flat** — every sensible split
-lands within ~5%, while collapsing to one space costs 46%. *Having* three spaces
+lands within ~5%, while collapsing to one model costs 46%. *Having* three models
 matters far more than their ratio, so these numbers are not worth re-tuning.
 
 ### Quality reranking
 
 | stage | NDCG@10 | poor@10 | novelty |
 |---|--:|--:|--:|
-| retrieval only | 0.259 | 28.7% | 0.497 |
-| **+ quality rerank (shipped)** | **0.261** | **13.3%** | 0.347 |
+| retrieval only | 0.257 | 29.7% | 0.500 |
+| **+ quality rerank (shipped)** | **0.261** | **13.0%** | 0.346 |
 
 `poor@10` is the share of a page rated below 70% positive. **Untouched retrieval
-puts a badly-reviewed game in nearly 3 of every 10 slots.** The prior halves that
-at no measurable ranking cost — paired bootstrap gives **+0.0011 NDCG, 95% CI
-[−0.0012, +0.0034]**, indistinguishable from zero. The honest claim is
+puts a badly-reviewed game in nearly 3 of every 10 slots.** The rerank halves
+that at no measurable ranking cost — paired bootstrap gives **+0.0011 NDCG, 95%
+CI [−0.0012, +0.0034]**, indistinguishable from zero. The honest claim is
 *neutral*, not *better*: it halves the bad-game rate for free.
 
 `poor@10` was added to the harness *specifically because NDCG cannot see it*: tag
@@ -334,13 +398,12 @@ Measured on the full 55,973-game catalogue, p50 over 40 queries:
 | endpoint | p50 | note |
 |---|--:|---|
 | `GET /recommend/{appid}` | **33 ms** | retrieve + rerank + hydrate + explain |
-| — `engine.similar` alone | 24 ms | of which retrieval is 23 ms |
+| — `recommend()` alone | 24 ms | of which similarity is 23 ms |
 | `GET /games?q=` (typeahead) | 10 ms | flat, whatever you type |
 | `GET /games/{appid}` | 3 ms | |
-| `GET /popular` | 3 ms | indexed, narrow-then-hydrate |
-| `GET /browse` (unfiltered) | 3 ms | |
+| `GET /browse` (unfiltered) | 3 ms | indexed, narrow-then-hydrate |
 | `GET /browse?genres=` | 60–219 ms | 219 ms is `Indie`, matching 40k of 56k rows |
-| `GET /facets/genres` | 11 ms | |
+| `GET /genres` | 11 ms | |
 | offline build | ~60 s | full dataset, one command |
 
 Three optimisations were worth making. Each was found by measuring, not guessing:
@@ -354,9 +417,9 @@ Attaching tag/genre lists before `LIMIT` made SQLite build them for all 56k rows
 Selecting AppIDs first and hydrating just those: **99 ms → 2.5 ms**.
 
 **3. A covering index and a one-character `+` for the typeahead.**
-`search_names` was **0.1 ms for `"a"` and 1,070 ms for a title matching
-nothing** — precisely backwards for a search box, since typing a specific title
-is what a typeahead is *for*. The query plan explained it:
+Name search was **0.1 ms for `"a"` and 1,070 ms for a title matching nothing** —
+precisely backwards for a search box, since typing a specific title is what a
+typeahead is *for*. The query plan explained it:
 
 ```
 SCAN games USING INDEX idx_games_popularity
@@ -387,6 +450,50 @@ would cost a denormalised sort key for no benefit a user could feel.
 
 ---
 
+## Testing
+
+`pytest` — 62 tests over the 600-game sample, about three seconds, no downloads.
+
+The suite is deliberately small and each test protects something that actually
+broke, or would be silent if it broke:
+
+| file | what it guards |
+|---|---|
+| `test_data.py` | The malformed header, the catalogue filter, Wilson, re-release collapsing |
+| `test_database.py` | Result ordering, faceted browse, the covering index, SQL injection via `sort_by` |
+| `test_recommender.py` | Unit-length rows, weight blending, the quality floor, self-recommendation, explanations |
+| `test_api.py` | Status codes, response shapes, parameter validation |
+| `test_evaluate.py` | That the harness itself is honest — mainly that held-out tags never leak into training |
+| `test_frontend.py` | The pages render, and numbers are formatted to fit a card |
+
+The one worth calling out is `test_the_answers_are_never_in_the_training_data`.
+If that ever fails, every number in this document is meaningless.
+
+---
+
+## Common commands
+
+```bash
+pip install -r requirements-dev.txt
+
+pytest                                   # tests
+
+python -m app.build --sample             # build from the committed 600-game sample
+python -m app.build                      # build from the full dataset
+python scripts/make_sample.py            # regenerate the sample (needs the full dataset)
+python -m app.evaluate                   # evaluation -> docs/results.md
+
+uvicorn app.api:app --reload             # API
+streamlit run frontend/streamlit_app.py  # UI
+docker compose up                        # both services
+```
+
+**Regenerating the README screenshots** is a rare manual task and deliberately
+has no tooling checked in: run the UI, then drive it with Playwright installed
+ad hoc. A 150 MB browser is not worth adding to a dependency list this short.
+
+---
+
 ## Limitations
 
 Stated plainly, because a project that claims no weaknesses is not being honest
@@ -398,10 +505,10 @@ about its evaluation.
 - **Franchise clustering is unaddressed.** Ask for games like Assassin's Creed
   Odyssey and you get six Assassin's Creed games. MMR was measured and did not
   fix it; a publisher cap would, and is scoped as future work.
-- **`recall@50` is low everywhere (~0.06).** The "ideal top-10" under the
-  protocol is whichever games share the most held-out tags — often obscure titles
-  with near-identical tag sets rather than good recommendations. Read it as a
-  *relative* signal between models, not an absolute miss rate.
+- **Recall is low everywhere.** The "ideal top-10" under the protocol is whichever
+  games share the most held-out tags — often obscure titles with near-identical
+  tag sets rather than good recommendations. Read it as a *relative* signal
+  between models, not an absolute miss rate.
 - **Quality-weighting is a popularity bias.** Bounded and deliberate
   (novelty 0.497 → 0.347), but a bias.
 - **The catalogue filter is itself a limitation.** Dropping 55% of games is
@@ -426,7 +533,7 @@ Scoped and justified, not a wishlist:
 | **Pooled human relevance judgments** | The one thing that would upgrade the evaluation from proxy to ground truth. |
 | **BM25 in the description space** | Length normalisation is a better fit for prose than raw TF-IDF; testable against the existing harness in an afternoon. |
 | **Learned blend weights** | Logistic regression over the three field similarities, instead of a hand-swept grid. |
-| **Query by multiple games** | Average several seed vectors — a small change to `retrieval.similar_rows`. |
+| **Query by multiple games** | Average several seed vectors — a small change to `recommend()`. |
 
 ### If this were production rather than a portfolio project
 
