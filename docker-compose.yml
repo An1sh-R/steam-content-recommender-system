@@ -8,14 +8,16 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-    # Uncomment to serve the full catalogue instead of the baked-in sample.
-    # Run `python -m recommender.build` on the host first.
+      start_period: 30s
+    # Uncomment to serve the full catalogue instead of the built-in sample.
+    # Run `python -m app.build` on the host first.
     # volumes:
     #   - ./data/processed:/app/data/processed
+    #   - ./data/artifacts:/app/data/artifacts
 
   ui:
     build: .
-    command: streamlit run app/main.py --server.address 0.0.0.0 --server.port 8501
+    command: streamlit run frontend/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
     ports:
       - "8501:8501"
     environment:

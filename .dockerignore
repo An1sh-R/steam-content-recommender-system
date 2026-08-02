@@ -7,13 +7,13 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# The 401 MB dataset and derived artifacts; the image builds from data/sample/
+# The 400 MB dataset and everything derived from it; the image builds its own
+# catalogue from data/sample/.
 data/raw/
 data/processed/
 data/artifacts/
 
 tests/
-evaluation/
 scripts/
 docs/
 *.md

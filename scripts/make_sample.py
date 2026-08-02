@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from recommender import config  # noqa: E402
+from app import config  # noqa: E402
 
 N_FAMOUS = 300  # highest review counts -> recognisable games for the demo
 N_SPREAD = 250  # stratified across the popularity range
