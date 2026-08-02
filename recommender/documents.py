@@ -1,16 +1,6 @@
 """Turns each game into one document per field group.
-
-Three groups rather than one concatenated string, because the fields have very
-different precision. There are 451 curated tags but ~28,000 distinct description
-words: merged into a single space, prose dominates the vocabulary and distorts
-IDF for the terms that actually carry signal.
-
-Keeping them apart also means retrieval returns a *per-field* similarity, which
-is what the recommendation explanations are built from.
-
-Developers and Publishers are deliberately absent. V1 accidentally indexed them
-and became a publisher-matcher; "same publisher" is not a reason to recommend a
-game. They are used for explanations only.
+Not concatenating them into one document to prevent description from
+dominating which is significantly larger than rest
 """
 
 from __future__ import annotations

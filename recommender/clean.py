@@ -28,9 +28,8 @@ def _drop_reissues(df: pd.DataFrame) -> pd.DataFrame:
     """Collapse the same game listed under several AppIDs, keeping the main one.
 
     Steam carries legacy and regional SKUs -- Portal 2, Assassin's Creed 2 and
-    BRINK each appear two or three times with byte-identical descriptions. They
-    are perfect content matches, so without this they rank first against
-    themselves.
+    BRINK each appear two or three times. They are perfect content matches, so without 
+    this they rank first against themselves.
 
     Matching on name *and* description *and* developer is deliberately strict:
     349 rows share only a name and are genuinely different games.
@@ -58,7 +57,7 @@ def _is_recommendable(df: pd.DataFrame) -> pd.Series:
 
 
 def split_values(value: str) -> list[str]:
-    """Split a comma-joined field into a de-duplicated, order-preserving list."""
+    """Split a comma-joined field into a unique, order-preserving list."""
     seen = {}
     for part in str(value).split(","):
         part = part.strip()

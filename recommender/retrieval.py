@@ -24,13 +24,11 @@ def similar_rows(
     per_space = {name: _cosine_against_all(matrices[name], row) for name in weights}
     combined = sum(weight * per_space[name] for name, weight in weights.items())
 
-    # Exclude the query itself by position, never by assuming it ranks first.
-    # V1 dropped rank 0 as "self"; quality weighting meant it often was not,
-    # so the query leaked into its own results in 22% of queries.
-    combined[row] = -np.inf
+    # Exclude the query itself by position
+    combined[row] = -np.inf # type: ignore
 
-    top = _top_indices(combined, n)
-    return top, combined[top], {name: scores[top] for name, scores in per_space.items()}
+    top = _top_indices(combined, n) # type: ignore
+    return top, combined[top], {name: scores[top] for name, scores in per_space.items()} # type: ignore
 
 
 def _cosine_against_all(matrix: sparse.csr_matrix, row: int) -> np.ndarray:

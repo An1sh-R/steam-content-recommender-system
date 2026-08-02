@@ -1,9 +1,5 @@
 """TF-IDF spaces: fit them at build time, load them at serve time.
 
-The fitted vectorizers are *not* persisted. Recommendation is item-to-item over
-a fixed catalogue, so no text is ever transformed at request time -- only the
-matrices and the AppID ordering are needed.
-
 Matrices are L2-normalised by TfidfVectorizer, so a dot product between two rows
 is already their cosine similarity.
 """
@@ -32,7 +28,7 @@ def fit(documents: dict[str, pd.Series]) -> dict[str, sparse.csr_matrix]:
     return {
         name: TfidfVectorizer(**VECTORIZER_OPTIONS[name]).fit_transform(docs)
         for name, docs in documents.items()
-    }
+    }  # pyright: ignore[reportReturnType]
 
 
 def save(matrices: dict[str, sparse.csr_matrix], appids: np.ndarray, directory: Path) -> None:

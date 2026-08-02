@@ -10,8 +10,6 @@ def test_quality_reorders_within_a_relevance_band():
 
 
 def test_quality_cannot_promote_an_irrelevant_game():
-    """The whole reason the blend is multiplicative. V1's additive version let a
-    popular game outrank a relevant one; this asserts that it cannot."""
     similarity = np.array([0.90, 0.40])
     scores = rerank.apply(similarity, np.array([0.0, 1.0]))
     assert scores[0] > scores[1]

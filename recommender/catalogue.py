@@ -63,14 +63,11 @@ def build_db(df: pd.DataFrame, path: Path) -> None:
         con.execute("CREATE UNIQUE INDEX idx_games_appid ON games(appid)")
 
         # Browse always ORDERs BY one of these; without an index SQLite sorts
-        # the whole catalogue before applying LIMIT. Guarded by what exists so
-        # new sort columns (popularity, M2) are picked up automatically.
-        for column in SORT_COLUMNS & set(games.columns):
+        # the whole catalogue before applying LIMIT.
+        for column in SORT_COLUMNS:
             con.execute(f"CREATE INDEX idx_games_{column} ON games({column})")
 
-        if set(SEARCH_COLUMNS) <= set(games.columns):
-            covered = ", ".join(SEARCH_COLUMNS)
-            con.execute(f"CREATE INDEX idx_games_search ON games({covered})")
+        con.execute(f"CREATE INDEX idx_games_search ON games({', '.join(SEARCH_COLUMNS)})")
 
         for column, (table, value_column) in CHILD_TABLES.items():
             pairs = df[["appid", column]].explode(column).dropna()
@@ -88,9 +85,10 @@ def connect(path: Path) -> sqlite3.Connection:
 def get_games(con: sqlite3.Connection, appids: list[int]) -> list[dict]:
     """Hydrate display-ready metadata for the given AppIDs, in the order passed in.
 
-    Every read path funnels through here: select the AppIDs you want first, then
-    hydrate just those. Attaching the tag/genre lists before narrowing makes
-    SQLite build them for the whole catalogue (~100ms) rather than for a page (~1ms).
+    Every read path funnels through here, and the order matters: ``IN`` gives no
+    ordering guarantee, but the AppIDs handed in are already ranked by similarity
+    and quality -- an order SQL knows nothing about. Unknown AppIDs are dropped
+    rather than raised, so callers must key results by AppID, never by position.
     """
     if not appids:
         return []
@@ -115,34 +113,30 @@ def browse(
     """Faceted browse. Multiple genres/tags narrow the results (AND semantics)."""
     if sort_by not in SORT_COLUMNS:
         raise ValueError(f"sort_by must be one of {sorted(SORT_COLUMNS)}")
+    if platform and platform not in PLATFORMS:
+        raise ValueError(f"platform must be one of {sorted(PLATFORMS)}")
 
     clauses: list[str] = []
     params: list = []
 
+    def where(clause: str, *values) -> None:
+        clauses.append(clause)
+        params.extend(values)
+
     if name:
-        clauses.append("g.name LIKE ? COLLATE NOCASE")
-        params.append(f"%{name}%")
-
+        where("g.name LIKE ? COLLATE NOCASE", f"%{name}%")
     if max_price is not None:
-        clauses.append("g.price <= ?")
-        params.append(max_price)
-
+        where("g.price <= ?", max_price)
     if platform:
-        if platform not in PLATFORMS:
-            raise ValueError(f"platform must be one of {sorted(PLATFORMS)}")
-        clauses.append(f"g.{platform} = 1")
+        where(f"g.{platform} = 1")
 
-    for values, (table, value_column) in (
-        (genres or [], CHILD_TABLES["genres"]),
-        (tags or [], CHILD_TABLES["tags"]),
-        (categories or [], CHILD_TABLES["categories"]),
-    ):
-        for value in values:
-            clauses.append(f"g.appid IN (SELECT appid FROM {table} WHERE {value_column} = ?)")
-            params.append(value)
+    for column, values in ("genres", genres), ("tags", tags), ("categories", categories):
+        table, value_column = CHILD_TABLES[column]
+        for value in values or []:
+            where(f"g.appid IN (SELECT appid FROM {table} WHERE {value_column} = ?)", value)
 
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    sql = f"SELECT appid FROM games g {where} ORDER BY g.{sort_by} DESC LIMIT ?"
+    filters = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"SELECT appid FROM games g {filters} ORDER BY g.{sort_by} DESC LIMIT ?"
     appids = [row[0] for row in con.execute(sql, [*params, limit])]
     return get_games(con, appids)
 
@@ -150,15 +144,13 @@ def browse(
 def search_names(con: sqlite3.Connection, query: str, limit: int = 20) -> list[dict]:
     """Substring name search for the select widget, best-known games first.
 
-    Returns AppIDs, never titles alone -- 1,210 games share a name with another.
+    Returns AppIDs, never titles alone -- 349 games share a name with another.
 
     The ``+`` on ``popularity`` is load-bearing, not a typo. Without it SQLite
-    satisfies the ORDER BY by walking idx_games_popularity and testing LIKE row
-    by row until it has ``limit`` matches. That is fast for a common substring
-    and catastrophic for a specific one: 0.1 ms for "a" but 1,070 ms for a title
-    that matches nothing -- and typing a specific title is what a typeahead is
-    for. The unary plus makes the ordering non-indexable, so SQLite scans
-    idx_games_search once and sorts the handful of matches: a flat ~6 ms.
+    walks idx_games_popularity testing LIKE row by row -- fast for a common
+    substring, ~1 s for a specific title, which is exactly what a typeahead gets
+    typed into. The plus makes the ordering non-indexable, so SQLite scans
+    idx_games_search once and sorts the handful of matches instead.
     """
     rows = con.execute(SEARCH_SQL, (f"%{query}%", limit)).fetchall()
     return [dict(row) for row in rows]

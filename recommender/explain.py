@@ -62,7 +62,7 @@ def _leading_fields(parts: dict[str, float]) -> list[str]:
     if total <= 0:
         return []
 
-    ranked = sorted(contribution, key=contribution.get, reverse=True)
+    ranked = sorted(contribution, key=contribution.get, reverse=True) # type: ignore
     return [f for f in ranked if contribution[f] / total >= config.EXPLAIN_MIN_SHARE]
 
 

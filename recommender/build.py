@@ -38,7 +38,7 @@ def build(sample: bool = False) -> None:
 
     matrices = vectorize.fit(documents.build_documents(games))
     for name, matrix in matrices.items():
-        print(f"  {name:12s} {matrix.shape[0]:,} x {matrix.shape[1]:,}")
+        print(f"  {name:12s} {matrix.shape[0]:,} x {matrix.shape[1]:,}") # type: ignore
     vectorize.save(matrices, games["appid"].to_numpy(), config.ARTIFACTS_DIR)
 
     print(f"wrote {config.CATALOGUE_DB.name} and vectors in {config.ARTIFACTS_DIR.name}/")
